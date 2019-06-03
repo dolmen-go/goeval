@@ -1,12 +1,12 @@
 
-# goeval - Evaluate Go snippets from the command line
+# goeval - Evaluate Go snippets instantly from the command line
 
 ## Demo
 
     $ goeval -i fmt 'fmt.Println("Hello, world!")'
     Hello, world!
     $ goeval -i fmt -i os 'fmt.Println(os.Args[1])' 'Hello, world!'
-    $ goeval -i fmt -i os 'fmt.Println(os.Args[1])' 'Hello, world!'
+    Hello, world!
 
     $ goeval -i fmt -i math/big -i os 'var x, y, z big.Int; x.SetString(os.Args[1], 10); y.SetString(os.Args[2], 10); fmt.Println(z.Mul(&x, &y).String())' 45673432245678899065433367889424354 136762347343433356789893322
     6246405805150306996814033892780381988744339134177555648763988
@@ -17,7 +17,7 @@
 
 ## How does it work?
 
-`goeval` just wraps your code with the necessary text to build a `main` package and a `main` func with the given imports, writes this in a temporary file and call `go run`.
+`goeval` just wraps your code with the necessary text to build a `main` package and a `main` func with the given imports, writes this in a temporary file and calls `go run`.
 
 ## License
 
