@@ -55,12 +55,16 @@ func main() {
 func _main() error {
 	var imports imports
 
-	flag.Var(&imports, "i", "import package: [name=]path")
-	// TODO declare usage
+	flag.Var(&imports, "i", "import package: [alias=]import-path")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [<options>...] <code> [<args>...]\nOptions:\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
 	flag.Parse()
 
 	if flag.NArg() < 1 {
-		log.Fatal("FIXME show usage")
+		flag.Usage()
 	}
 	code := flag.Arg(0)
 	args := flag.Args()[1:]
