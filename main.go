@@ -54,8 +54,11 @@ func main() {
 
 func _main() error {
 	var imports imports
-
 	flag.Var(&imports, "i", "import package: [alias=]import-path")
+
+	var goimports string
+	flag.StringVar(&goimports, "goimports", "goimports", "goimports tool name, to use an alternate tool or just disable it")
+
 	flag.Usage = func() {
 		prog := os.Args[0]
 		fmt.Fprintf(flag.CommandLine.Output(), "\nUsage: %s [<options>...] <code> [<args>...]\n\nOptions:\n", prog)
@@ -88,11 +91,23 @@ func _main() error {
 	}
 	defer os.Remove(f.Name())
 	defer f.Close()
-	_, err = f.Write(src.Bytes())
-	if err != nil {
-		log.Fatal(err)
+
+	if goimports != "" {
+		cmd := exec.Command("goimports")
+		cmd.Stdin = &src
+		cmd.Stdout = f
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+	} else {
+		_, err = f.Write(src.Bytes())
 	}
-	f.Close()
+	if err != nil {
+		return err
+	}
+	err = f.Close()
+	if err != nil {
+		return err
+	}
 
 	cmd := exec.Command("go", append([]string{
 		"run",

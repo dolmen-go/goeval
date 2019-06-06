@@ -13,11 +13,12 @@
 
 ## Install
 
+    $ go get golang.org/x/tools/goimports
     $ go get -u github.com/dolmen-go/goeval
 
 ## How does it work?
 
-`goeval` just wraps your code with the necessary text to build a `main` package and a `main` func with the given imports, writes this in a temporary file and calls `go run`.
+`goeval` just wraps your code with the necessary text to build a `main` package and a `main` func with the given imports, pass it through the `goimports` tool (to automatically add missing imports), writes in a temporary file and calls `go run`.
 
 ## License
 
