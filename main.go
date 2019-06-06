@@ -57,8 +57,10 @@ func _main() error {
 
 	flag.Var(&imports, "i", "import package: [alias=]import-path")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [<options>...] <code> [<args>...]\nOptions:\n", os.Args[0])
+		prog := os.Args[0]
+		fmt.Fprintf(flag.CommandLine.Output(), "\nUsage: %s [<options>...] <code> [<args>...]\n\nOptions:\n", prog)
 		flag.PrintDefaults()
+		fmt.Fprintf(flag.CommandLine.Output(), "\nExample:\n  %s -i fmt 'fmt.Println(\"Hello, world!\")'\n\n", prog)
 		os.Exit(1)
 	}
 	flag.Parse()
