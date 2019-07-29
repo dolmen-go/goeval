@@ -80,9 +80,21 @@ func _main() error {
 
 	flag.Usage = func() {
 		prog := os.Args[0]
-		fmt.Fprintf(flag.CommandLine.Output(), "\nUsage: %s [<options>...] <code> [<args>...]\n\nOptions:\n", prog)
+		fmt.Fprintf(flag.CommandLine.Output(), ""+
+			"\n"+
+			"Usage: %s [<options>...] <code> [<args>...]\n"+
+			"\n"+
+			"Options:\n",
+			prog)
 		flag.PrintDefaults()
-		fmt.Fprintf(flag.CommandLine.Output(), "\nExample:\n  %s -i fmt 'fmt.Println(\"Hello, world!\")'\n\n", prog)
+		fmt.Fprintf(flag.CommandLine.Output(), ""+
+			"\n"+
+			"Example:\n"+
+			"  %s -i fmt 'fmt.Println(\"Hello, world!\")'\n"+
+			"\n"+
+			"Copyright 2019 Olivier Mengué.\n"+
+			"Source code: https://github.com/dolmen-go/goeval\n",
+			prog)
 		os.Exit(1)
 	}
 	flag.Parse()
