@@ -59,6 +59,9 @@ func _main() error {
 	var goimports string
 	flag.StringVar(&goimports, "goimports", "goimports", "goimports tool name, to use an alternate tool or just disable it")
 
+	var noRun bool // -E, like "cc -E"
+	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it")
+
 	flag.Usage = func() {
 		prog := os.Args[0]
 		fmt.Fprintf(flag.CommandLine.Output(), "\nUsage: %s [<options>...] <code> [<args>...]\n\nOptions:\n", prog)
@@ -85,12 +88,18 @@ func _main() error {
 
 	// fmt.Print(src.String())
 
-	f, err := ioutil.TempFile("", "*.go")
-	if err != nil {
-		log.Fatal(err)
+	var f *os.File
+	var err error
+	if !noRun {
+		f, err = ioutil.TempFile("", "*.go")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer os.Remove(f.Name())
+		defer f.Close()
+	} else {
+		f = os.Stdout
 	}
-	defer os.Remove(f.Name())
-	defer f.Close()
 
 	if goimports != "" {
 		cmd := exec.Command("goimports")
@@ -103,6 +112,9 @@ func _main() error {
 	}
 	if err != nil {
 		return err
+	}
+	if noRun {
+		return nil
 	}
 	err = f.Close()
 	if err != nil {
