@@ -24,6 +24,11 @@
 
 `goeval` just wraps your code with the necessary text to build a `main` package and a `main` func with the given imports, pass it through the [`goimports` tool](https://godoc.org/golang.org/x/tools/cmd/goimports) (to automatically add missing imports), writes in a temporary file and calls `go run`.
 
+`goimports` is enabled by default, but you can disable it to force explicit imports (for forward safety):
+
+    $ goeval -goimports= -i fmt 'fmt.Println("Hello, world!")'
+    Hello, world!
+
 ## License
 
 Copyright 2019 Olivier Mengué
