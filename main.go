@@ -103,6 +103,14 @@ func _main() error {
 		flag.Usage()
 	}
 	code := flag.Arg(0)
+	if code == "-" {
+		b, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		code = string(b)
+	}
+
 	args := flag.Args()[1:]
 
 	var src bytes.Buffer
