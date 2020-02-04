@@ -29,6 +29,12 @@
     $ goeval -goimports= -i fmt 'fmt.Println("Hello, world!")'
     Hello, world!
 
+## Alternatives
+
+* [gommand](https://github.com/sno6/gommand) Go one liner program. Similar to `python -c`.
+* [gorram](https://github.com/natefinch/gorram) Like `go run` for any Go function.
+* [goexec](https://github.com/shurcooL/goexec) A command line tool to execute Go functions.
+
 ## License
 
 Copyright 2019 Olivier Mengué
