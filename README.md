@@ -17,7 +17,6 @@
 
 ## Install
 
-    $ go get golang.org/x/tools/cmd/goimports
     $ go get -u github.com/dolmen-go/goeval
 
 ## How does it work?

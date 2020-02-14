@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	goimp "golang.org/x/tools/imports"
 )
 
 type imports map[string]string
@@ -137,14 +139,20 @@ func _main() error {
 		f = os.Stdout
 	}
 
-	if goimports != "" {
-		cmd := exec.Command("goimports")
+	switch goimports {
+	case "goimports":
+		out, err := goimp.Process("", src.Bytes(), nil)
+		if err == nil {
+			_, err = f.Write(out)
+		}
+	case "":
+		_, err = f.Write(src.Bytes())
+	default:
+		cmd := exec.Command(goimports)
 		cmd.Stdin = &src
 		cmd.Stdout = f
 		cmd.Stderr = os.Stderr
 		err = cmd.Run()
-	} else {
-		_, err = f.Write(src.Bytes())
 	}
 	if err != nil {
 		return err
