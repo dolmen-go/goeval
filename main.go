@@ -71,7 +71,7 @@ func main() {
 }
 
 func _main() error {
-	var imports imports
+	imports := imports{"os": "os"}
 	flag.Var(&imports, "i", "import package: [alias=]import-path")
 
 	var goimports string
@@ -120,7 +120,7 @@ func _main() error {
 	for name, path := range imports {
 		fmt.Fprintf(&src, "import %s %q\n", name, path)
 	}
-	src.WriteString("func main() {\n//line :1\n")
+	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n//line :1\n")
 	src.WriteString(code)
 	src.WriteString("\n}\n")
 
@@ -168,6 +168,7 @@ func _main() error {
 	cmd := exec.Command("go", append([]string{
 		"run",
 		f.Name(),
+		"--",
 	}, args...)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
