@@ -139,6 +139,9 @@ func _main() error {
 		f = os.Stdout
 	}
 
+	// Run in GOPATH mode, ignoring any code in the current directory
+	env := append(os.Environ(), "GO111MODULE=off")
+
 	switch goimports {
 	case "goimports":
 		out, err := goimp.Process("", src.Bytes(), nil)
@@ -149,6 +152,7 @@ func _main() error {
 		_, err = f.Write(src.Bytes())
 	default:
 		cmd := exec.Command(goimports)
+		cmd.Env = env
 		cmd.Stdin = &src
 		cmd.Stdout = f
 		cmd.Stderr = os.Stderr
@@ -170,6 +174,7 @@ func _main() error {
 		f.Name(),
 		"--",
 	}, args...)...)
+	cmd.Env = env
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
