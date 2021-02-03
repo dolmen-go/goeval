@@ -20,10 +20,10 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	exec "golang.org/x/sys/execabs" // https://blog.golang.org/path-security
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"strings"
 
 	goimp "golang.org/x/tools/imports"
