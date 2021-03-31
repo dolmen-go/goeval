@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -50,6 +51,10 @@ func (imp *imports) Set(s string) error {
 	} else {
 		name = s[:i]
 		path = s[i+1:]
+	}
+
+	if path == "embed" {
+		return errors.New("use of package 'embed' is not allowed")
 	}
 
 	// FIXME check that name and path have len > 0
