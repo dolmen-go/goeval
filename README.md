@@ -17,7 +17,11 @@
 
 ## Install
 
-    $ go get -u github.com/dolmen-go/goeval
+    $ go install github.com/dolmen-go/goeval@master
+
+## Uninstall
+
+    $ go clean -i github.com/dolmen-go/goeval
 
 ## How does it work?
 
