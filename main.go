@@ -150,7 +150,8 @@ func _main() error {
 
 	switch goimports {
 	case "goimports":
-		out, err := goimp.Process("", src.Bytes(), nil)
+		var out []byte
+		out, err = goimp.Process("", src.Bytes(), nil)
 		if err == nil {
 			_, err = f.Write(out)
 		}
