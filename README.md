@@ -36,7 +36,7 @@
 
 To debug a syntax error:
 
-    goeval -E -goimports= ... | goimports
+    $ goeval -E -goimports= ... | goimports
 
 ## Unsupported tricks
 
@@ -58,12 +58,14 @@ Needs:
 - goeval compiled with Go 1.18+
 - Go 1.18+ installed.
 
-    $ goeval 'p(1);p("a");};func p[T any](x T){fmt.Println(x)'
-    1
-    a
-    $ goeval -i golang.org/x/exp/constraints 'p(1);p(2.0);};func p[T constraints.Signed|constraints.Float](x T){x++;fmt.Println(x)'
-    2
-    3
+```console
+$ goeval 'p(1);p("a");};func p[T any](x T){fmt.Println(x)'
+1
+a
+$ goeval -i golang.org/x/exp/constraints 'p(1);p(2.0);};func p[T constraints.Signed|constraints.Float](x T){x++;fmt.Println(x)'
+2
+3
+```
 
 ## Alternatives
 
