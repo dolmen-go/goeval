@@ -3,25 +3,31 @@
 
 ## Demo
 
-    $ goeval 'fmt.Println("Hello, world!")'
-    Hello, world!
-    $ goeval 'fmt.Println(os.Args[1])' 'Hello, world!'
-    Hello, world!
-    $ goeval -i .=fmt -i os 'Println(os.Args[1])' 'Hello, world!'
-    Hello, world!
-    $ goeval -i math/rand 'fmt.Println(rand.Int())'
-    5577006791947779410
+```console
+$ goeval 'fmt.Println("Hello, world!")'
+Hello, world!
+$ goeval 'fmt.Println(os.Args[1])' 'Hello, world!'
+Hello, world!
+$ goeval -i .=fmt -i os 'Println(os.Args[1])' 'Hello, world!'
+Hello, world!
+$ goeval -i math/rand 'fmt.Println(rand.Int())'
+5577006791947779410
 
-    $ goeval -i fmt -i math/big -i os 'var x, y, z big.Int; x.SetString(os.Args[1], 10); y.SetString(os.Args[2], 10); fmt.Println(z.Mul(&x, &y).String())' 45673432245678899065433367889424354 136762347343433356789893322
-    6246405805150306996814033892780381988744339134177555648763988
+$ goeval -i fmt -i math/big -i os 'var x, y, z big.Int; x.SetString(os.Args[1], 10); y.SetString(os.Args[2], 10); fmt.Println(z.Mul(&x, &y).String())' 45673432245678899065433367889424354 136762347343433356789893322
+6246405805150306996814033892780381988744339134177555648763988
+```
 
 ## Install
 
-    $ go install github.com/dolmen-go/goeval@master
+```console
+$ go install github.com/dolmen-go/goeval@master
+```
 
 ## Uninstall
 
-    $ go clean -i github.com/dolmen-go/goeval
+```console
+$ go clean -i github.com/dolmen-go/goeval
+```
 
 ## How does it work?
 
@@ -29,14 +35,18 @@
 
 `goimports` is enabled by default, but you can disable it to force explicit imports (for forward safety):
 
-    $ goeval -goimports= -i fmt 'fmt.Println("Hello, world!")'
-    Hello, world!
+```console
+$ goeval -goimports= -i fmt 'fmt.Println("Hello, world!")'
+Hello, world!
+```
 
 ## Debugging
 
 To debug a syntax error:
 
-    $ goeval -E -goimports= ... | goimports
+```console
+$ goeval -E -goimports= ... | goimports
+````
 
 ## Unsupported tricks
 
@@ -46,11 +56,15 @@ Here are some tricks that have worked in the past, that may still work in the la
 
 The supported way:
 
-    $ goeval 'var fact func(int)int;fact=func(n int)int{if n==1{return 1};return n*fact(n-1);};fmt.Println(fact(5))'
+```console
+$ goeval 'var fact func(int)int;fact=func(n int)int{if n==1{return 1};return n*fact(n-1);};fmt.Println(fact(5))'
+```
 
 The hacky way:
 
-    $ goeval 'fmt.Println(fact(5));};func fact(n int)int{if n==1{return 1};return n*fact(n-1)'
+```console
+$ goeval 'fmt.Println(fact(5));};func fact(n int)int{if n==1{return 1};return n*fact(n-1)'
+```
 
 ### Use generics
 
