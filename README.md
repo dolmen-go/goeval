@@ -76,6 +76,9 @@ Needs:
 $ goeval 'p(1);p("a");};func p[T any](x T){fmt.Println(x)'
 1
 a
+$ goeval 'p(1);p(2.0);};func p[T int|float64](x T){x++;fmt.Println(x)'
+2
+3
 $ goeval -i golang.org/x/exp/constraints 'p(1);p(2.0);};func p[T constraints.Signed|constraints.Float](x T){x++;fmt.Println(x)'
 2
 3
