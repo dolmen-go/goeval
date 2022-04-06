@@ -15,6 +15,9 @@ $ goeval -i math/rand 'fmt.Println(rand.Int())'
 
 $ goeval -i fmt -i math/big -i os 'var x, y, z big.Int; x.SetString(os.Args[1], 10); y.SetString(os.Args[2], 10); fmt.Println(z.Mul(&x, &y).String())' 45673432245678899065433367889424354 136762347343433356789893322
 6246405805150306996814033892780381988744339134177555648763988
+
+$ goeval 'fmt.Printf("%x\n", sha256.Sum256([]byte(os.Args[1])))' abc
+ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 ```
 
 ## Install
