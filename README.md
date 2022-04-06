@@ -32,6 +32,39 @@
     $ goeval -goimports= -i fmt 'fmt.Println("Hello, world!")'
     Hello, world!
 
+## Debugging
+
+To debug a syntax error:
+
+    goeval -E -goimports= ... | goimports
+
+## Unsupported tricks
+
+Here are some tricks that have worked in the past, that may still work in the last version, but are not guaranteed to work later.
+
+### Use functions
+
+The supported way:
+
+    $ goeval 'var fact func(int)int;fact=func(n int)int{if n==1{return 1};return n*fact(n-1);};fmt.Println(fact(5))'
+
+The hacky way:
+
+    $ goeval 'fmt.Println(fact(5));};func fact(n int)int{if n==1{return 1};return n*fact(n-1)'
+
+### Use generics
+
+Needs:
+- goeval compiled with Go 1.18+
+- Go 1.18+ installed.
+
+    $ goeval 'p(1);p("a");};func p[T any](x T){fmt.Println(x)'
+    1
+    a
+    $ goeval -i golang.org/x/exp/constraints 'p(1);p(2.0);};func p[T constraints.Signed|constraints.Float](x T){x++;fmt.Println(x)'
+    2
+    3
+
 ## Alternatives
 
 * [gommand](https://github.com/sno6/gommand) Go one liner program. Similar to `python -c`.
