@@ -18,6 +18,9 @@ $ goeval -i fmt -i math/big -i os 'var x, y, z big.Int; x.SetString(os.Args[1], 
 
 $ goeval 'fmt.Printf("%x\n", sha256.Sum256([]byte(os.Args[1])))' abc
 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+
+$ GO111MODULE=off go get github.com/klauspost/cpuid && goeval -i github.com/klauspost/cpuid/v2 'fmt.Println(cpuid.CPU.X64Level())'
+3
 ```
 
 ## Install
