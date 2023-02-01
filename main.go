@@ -24,9 +24,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec" // Go 1.19 behaviour enforced in go.mod. See https://blog.golang.org/path-security and https://pkg.go.dev/os/exec
 	"strings"
-
-	exec "golang.org/x/sys/execabs" // https://blog.golang.org/path-security
 
 	goimp "golang.org/x/tools/imports"
 )
