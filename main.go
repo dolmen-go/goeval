@@ -151,7 +151,14 @@ func _main() error {
 	switch goimports {
 	case "goimports":
 		var out []byte
-		out, err = goimp.Process("", src.Bytes(), nil)
+		out, err = goimp.Process("", src.Bytes(), &goimp.Options{
+			Fragment:   false,
+			AllErrors:  false,
+			Comments:   false,
+			TabIndent:  true,
+			TabWidth:   8,
+			FormatOnly: false,
+		})
 		if err == nil {
 			_, err = f.Write(out)
 		}
