@@ -150,9 +150,16 @@ func _main() error {
 
 	args := flag.Args()[1:]
 
-	var origDir string
+	env := os.Environ()
+	if imports.modules == nil {
+		// Run in GOPATH mode, ignoring any code in the current directory
+		env = append(env, "GO111MODULE=off")
+	} else {
+		env = append(env, "GO111MODULE=on")
+	}
 
-	var dir string
+	var dir, origDir string
+
 	if imports.modules != nil {
 		var err error
 		if dir, err = os.MkdirTemp("", "goeval*"); err != nil {
@@ -167,35 +174,35 @@ func _main() error {
 			log.Fatal("getwd:", err)
 		}
 
-		if err := os.Chdir(dir); err != nil {
-			log.Fatalf("chdir(%q): %v", dir, err)
+		gomod := dir + "/go.mod"
+		if err := os.WriteFile(gomod, []byte("module "+moduleName+"\n"), 0600); err != nil {
+			log.Fatal("go.mod:", err)
+		}
+		defer os.Remove(gomod)
+
+		var gogetArgs []string
+		gogetArgs = append(gogetArgs, "get", "--")
+		for mod, ver := range imports.modules {
+			gogetArgs = append(gogetArgs, mod+"@"+ver)
+		}
+		for _, path := range imports.packages {
+			if _, seen := imports.modules[path]; !seen {
+				gogetArgs = append(gogetArgs, path)
+			}
 		}
 
-		gomod, err := os.Create(dir + "/go.mod")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer func() {
-			gomod.Close()
-			os.Remove(gomod.Name())
-		}()
-		fmt.Fprintf(gomod, "module %s\n\nrequire (\n", moduleName)
-		for path, version := range imports.modules {
-			fmt.Fprintf(gomod, "\t%s %s\n", path, version)
-		}
-		gomod.WriteString(")\n")
-		gomod.Close()
-
-		// log.Printf("go.mod: %s", gomod.Name())
-		cmd := exec.Command("go", "mod", "download")
-		cmd.Env = os.Environ()
+		cmd := exec.Command("go", gogetArgs...)
+		cmd.Env = env
+		cmd.Dir = dir
 		cmd.Stdin = nil
 		cmd.Stdout = nil
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = os.Stdout
+		// go get is too verbose :(
+		cmd.Stderr = nil
 		if err = cmd.Run(); err != nil {
-			log.Fatal("go mod download failure:", err)
+			log.Fatal("go get failure:", err)
 		}
-		log.Println("go mod download OK.")
+		// log.Println("go get OK.")
 		defer os.Remove(dir + "/go.sum")
 	}
 
@@ -236,15 +243,6 @@ func _main() error {
 		f = os.Stdout
 	}
 
-	env := os.Environ()
-
-	if imports.modules == nil {
-		// Run in GOPATH mode, ignoring any code in the current directory
-		env = append(env, "GO111MODULE=off")
-	} else {
-		env = append(env, "GO111MODULE=on")
-	}
-
 	switch goimports {
 	case "goimports":
 		var out []byte
@@ -268,6 +266,7 @@ func _main() error {
 	default:
 		cmd := exec.Command(goimports)
 		cmd.Env = env
+		cmd.Dir = dir
 		cmd.Stdin = &src
 		cmd.Stdout = f
 		cmd.Stderr = os.Stderr
@@ -308,26 +307,36 @@ func _main() error {
 	}
 
 	if origDir != "" {
-		goget := exec.Command("go", "get", ".")
-		goget.Stdout = os.Stdout
-		goget.Stderr = os.Stderr
-		goget.Run()
+		/*
+			// Do we need to run "go get" again after "goimports"?
+			goget := exec.Command("go", "get", ".")
+			goget.Env = env
+			goget.Dir = dir
+			goget.Stdout = os.Stdout
+			goget.Stderr = os.Stderr
+			goget.Run()
+		*/
 
-		// Debug
-		log.Println(origDir)
-		cmd1 := exec.Command("sh", "-c", "ls -l;cat "+f.Name()+";echo '-- go.mod --';cat go.mod;echo '-- go.sum --';cat go.sum")
-		cmd1.Stdout = os.Stdout
-		cmd1.Run()
+		/*
+			// Debug
+			log.Println(origDir)
+			showDir := exec.Command("sh", "-c", "ls -l;cat "+f.Name()+";echo '-- go.mod --';cat go.mod;echo '-- go.sum --';cat go.sum")
+			showDir.Env = env
+			showDir.Dir = dir
+			showDir.Stdout = os.Stdout
+			showDir.Run()
+		*/
 	}
 
 	var runArgs = make([]string, 0, 3+len(args))
 	runArgs = append(runArgs, "run", f.Name(), "--")
 	runArgs = append(runArgs, args...)
 
-	log.Println(runArgs)
+	// log.Println("go", runArgs)
 
 	cmd := exec.Command("go", runArgs...)
 	cmd.Env = env
+	cmd.Dir = dir // In Go module mode we run from the temp module dir
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
