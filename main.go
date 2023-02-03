@@ -26,8 +26,8 @@ import (
 	"log"
 	"os"
 	"os/exec" // Go 1.19 behaviour enforced in go.mod. See https://blog.golang.org/path-security and https://pkg.go.dev/os/exec
+	"path/filepath"
 	"strings"
-	"time"
 
 	"golang.org/x/mod/module"
 	goimp "golang.org/x/tools/imports"
@@ -150,26 +150,6 @@ func _main() error {
 
 	args := flag.Args()[1:]
 
-	var src bytes.Buffer
-	src.WriteString("package main\n")
-	for alias, path := range imports.packages {
-		if len(alias) > 2 && alias[1] == ' ' {
-			switch alias[0] {
-			case '.', '_':
-				alias = alias[:1]
-			case ' ': // no alias
-				fmt.Fprintf(&src, "import %q\n", path)
-				continue
-			}
-		}
-		fmt.Fprintf(&src, "import %s %q\n", alias, path)
-	}
-	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n//line :1\n")
-	src.WriteString(code)
-	src.WriteString("\n}\n")
-
-	// fmt.Print(src.String())
-
 	var origDir string
 
 	var dir string
@@ -179,6 +159,8 @@ func _main() error {
 			log.Fatal(err)
 		}
 		defer os.Remove(dir)
+
+		moduleName := filepath.Base(dir)
 
 		origDir, err = os.Getwd()
 		if err != nil {
@@ -197,7 +179,7 @@ func _main() error {
 			gomod.Close()
 			os.Remove(gomod.Name())
 		}()
-		fmt.Fprintf(gomod, "module goeval%s\n\nrequire (\n", time.Now().UTC().Format("20060102150405"))
+		fmt.Fprintf(gomod, "module %s\n\nrequire (\n", moduleName)
 		for path, version := range imports.modules {
 			fmt.Fprintf(gomod, "\t%s %s\n", path, version)
 		}
@@ -216,6 +198,30 @@ func _main() error {
 		log.Println("go mod download OK.")
 		defer os.Remove(dir + "/go.sum")
 	}
+
+	var src bytes.Buffer
+	src.WriteString("package main\n")
+	for alias, path := range imports.packages {
+		if len(alias) > 2 && alias[1] == ' ' {
+			switch alias[0] {
+			case '.', '_':
+				alias = alias[:1]
+			case ' ': // no alias
+				fmt.Fprintf(&src, "import %q\n", path)
+				continue
+			}
+		}
+		fmt.Fprintf(&src, "import %s %q\n", alias, path)
+	}
+	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
+	if origDir != "" {
+		fmt.Fprintf(&src, "os.Chdir(%q)\n", origDir)
+	}
+	src.WriteString("//line :1\n")
+	src.WriteString(code)
+	src.WriteString("\n}\n")
+
+	// fmt.Print(src.String())
 
 	var f *os.File
 	var err error
@@ -303,24 +309,25 @@ func _main() error {
 
 	log.Println(origDir)
 	if origDir != "" {
-		if err := os.Chdir(origDir); err != nil {
-			log.Fatalf("chdir(%q): %v", origDir, err)
-		}
-
-		cmd1 := exec.Command("ls", "-l", dir)
+		cmd1 := exec.Command("sh", "-c", "ls -l;cat "+f.Name()+";echo '-- go.mod --';cat go.mod;echo '-- go.sum --';cat go.sum")
 		cmd1.Stdout = os.Stdout
 		cmd1.Run()
-		cmd2 := exec.Command("cat", f.Name())
-		cmd2.Stdout = os.Stdout
-		cmd2.Run()
+		/*
+			cmd2 := exec.Command("cat", f.Name())
+			cmd2.Stdout = os.Stdout
+			cmd2.Run()
+		*/
 	}
 
 	var runArgs = make([]string, 0, 1+2+2+len(args))
 	runArgs = append(runArgs, "run")
 	if imports.modules != nil {
 		log.Println(f.Name())
-		runArgs = append(runArgs, "-modfile", dir+"/go.mod", f.Name())
+		//runArgs = append(runArgs, "-modfile", dir+"/go.mod", f.Name())
 		//runArgs = append(runArgs, "-modfile", dir+"/go.mod", dir+"@v1.0.0")
+		// runArgs = append(runArgs, f.Name())
+		// runArgs = append(runArgs, filepath.Base(f.Name()))
+		runArgs = append(runArgs, ".")
 	} else {
 		runArgs = append(runArgs, f.Name())
 	}
