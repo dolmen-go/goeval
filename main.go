@@ -215,7 +215,7 @@ func _main() error {
 	}
 	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
 	if origDir != "" {
-		fmt.Fprintf(&src, "os.Chdir(%q)\n", origDir)
+		fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
 	}
 	src.WriteString("//line :1\n")
 	src.WriteString(code)
@@ -307,43 +307,24 @@ func _main() error {
 		return err
 	}
 
-	log.Println(origDir)
 	if origDir != "" {
+		goget := exec.Command("go", "get", ".")
+		goget.Stdout = os.Stdout
+		goget.Stderr = os.Stderr
+		goget.Run()
+
+		// Debug
+		log.Println(origDir)
 		cmd1 := exec.Command("sh", "-c", "ls -l;cat "+f.Name()+";echo '-- go.mod --';cat go.mod;echo '-- go.sum --';cat go.sum")
 		cmd1.Stdout = os.Stdout
 		cmd1.Run()
-		/*
-			cmd2 := exec.Command("cat", f.Name())
-			cmd2.Stdout = os.Stdout
-			cmd2.Run()
-		*/
 	}
 
-	var runArgs = make([]string, 0, 1+2+2+len(args))
-	runArgs = append(runArgs, "run")
-	if imports.modules != nil {
-		log.Println(f.Name())
-		//runArgs = append(runArgs, "-modfile", dir+"/go.mod", f.Name())
-		//runArgs = append(runArgs, "-modfile", dir+"/go.mod", dir+"@v1.0.0")
-		// runArgs = append(runArgs, f.Name())
-		// runArgs = append(runArgs, filepath.Base(f.Name()))
-		runArgs = append(runArgs, ".")
-	} else {
-		runArgs = append(runArgs, f.Name())
-	}
-	runArgs = append(runArgs, "--")
+	var runArgs = make([]string, 0, 3+len(args))
+	runArgs = append(runArgs, "run", f.Name(), "--")
 	runArgs = append(runArgs, args...)
 
 	log.Println(runArgs)
-
-	/*
-		cmdSh := exec.Command("bash")
-		cmdSh.Env = append(os.Environ(), "PS1=++>")
-		cmdSh.Stdin = os.Stdin
-		cmdSh.Stdout = os.Stdout
-		cmdSh.Stderr = os.Stderr
-		cmdSh.Run()
-	*/
 
 	cmd := exec.Command("go", runArgs...)
 	cmd.Env = env
