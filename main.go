@@ -1,5 +1,5 @@
 /*
-   Copyright 2019-2022 Olivier Mengué.
+   Copyright 2019-2023 Olivier Mengué.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -153,7 +153,7 @@ func _main() error {
 			"Example:\n"+
 			"  %s -i fmt 'fmt.Println(\"Hello, world!\")'\n"+
 			"\n"+
-			"Copyright 2019-2022 Olivier Mengué.\n"+
+			"Copyright 2019-2023 Olivier Mengué.\n"+
 			"Source code: https://github.com/dolmen-go/goeval\n",
 			prog)
 		os.Exit(1)
