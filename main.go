@@ -21,49 +21,99 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec" // Go 1.19 behaviour enforced in go.mod. See https://blog.golang.org/path-security and https://pkg.go.dev/os/exec
+	"path/filepath"
 	"strings"
+	"time"
 
+	"golang.org/x/mod/module"
 	goimp "golang.org/x/tools/imports"
 )
 
-type imports map[string]string
+type imports struct {
+	packages map[string]string // alias => import path
+	modules  map[string]string // module path => version
+}
 
-func (i imports) String() string {
+func (*imports) String() string {
 	return "" // irrelevant
 }
 
 func (imp *imports) Set(s string) error {
-	i := strings.IndexByte(s, '=')
-	var name, path string
-	if i == -1 {
+	var alias, path, version string
+	var ok bool
+	if alias, path, ok = strings.Cut(s, "="); !ok {
+		alias = ""
 		path = s
-		i = strings.LastIndexByte(s, '/')
-		if i > 0 {
-			name = s[i+1:]
-		} else {
-			name = path
+	} else if alias == "" {
+		return fmt.Errorf("%q: empty alias", s)
+	} else if alias == "_" || alias == "." {
+		tmpPath, _, _ := strings.Cut(path, "@")
+		alias = alias + " " + tmpPath // special alias
+	} else if strings.Contains(alias, " ") {
+		return fmt.Errorf("%q: invalid alias", s)
+	}
+	var p2 string
+	if p2, version, ok = strings.Cut(path, "@"); ok {
+		if version == "" {
+			return fmt.Errorf("%q: empty module version", s)
 		}
-	} else {
-		name = s[:i]
-		path = s[i+1:]
+		path = p2
+		if err := module.CheckPath(path); err != nil {
+			return fmt.Errorf("%q: %w", s, err)
+		}
+		// TODO check for duplicates
+		if imp.modules == nil {
+			imp.modules = make(map[string]string)
+		}
+		imp.modules[path] = version
+	} else if alias == "" {
+		alias = "  " + path // special alias
 	}
 
-	if path == "embed" {
+	switch path {
+	case "":
+		return fmt.Errorf("%q: empty path", s)
+	case "embed":
 		return errors.New("use of package 'embed' is not allowed")
+
+	default:
+		if err := module.CheckImportPath(path); err != nil {
+			return fmt.Errorf("%q: %w", s, err)
+		}
 	}
 
-	// FIXME check that name and path have len > 0
-
-	if *imp == nil {
-		*imp = imports{name: path}
-	} else {
-		(*imp)[name] = path
+	if alias != "" {
+		imp.packages[alias] = path
 	}
+
+	// log.Printf("alias=%s path=%s version=%s", alias, path, version)
+
 	return nil
+}
+
+func runSilent(cmd *exec.Cmd) error {
+	return cmd.Run()
+}
+
+func runX(cmd *exec.Cmd) error {
+	// Inject -x in go commands
+	if cmd.Args[0] == "go" {
+		cmd.Args = append([]string{"go", cmd.Args[1], "-x"}, cmd.Args[2:]...)
+	}
+	fmt.Printf("%s\n", cmd.Args)
+	return cmd.Run()
+}
+
+func runTime(cmd *exec.Cmd) error {
+	defer func(start time.Time) {
+		fmt.Fprintf(os.Stderr, "run %v %v\n", time.Since(start), cmd.Args)
+	}(time.Now())
+	return cmd.Run()
 }
 
 func main() {
@@ -76,7 +126,9 @@ func main() {
 }
 
 func _main() error {
-	imports := imports{"os": "os"}
+	imports := imports{
+		packages: map[string]string{"  ": "os"},
+	}
 	flag.Var(&imports, "i", "import package: [alias=]import-path")
 
 	var goimports string
@@ -84,6 +136,8 @@ func _main() error {
 
 	var noRun bool // -E, like "cc -E"
 	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it")
+
+	showCmds := flag.Bool("x", false, "print the commands")
 
 	flag.Usage = func() {
 		prog := os.Args[0]
@@ -120,12 +174,86 @@ func _main() error {
 
 	args := flag.Args()[1:]
 
+	run := runSilent
+	if *showCmds {
+		run = runX
+	}
+
+	env := os.Environ()
+	if imports.modules == nil {
+		// Run in GOPATH mode, ignoring any code in the current directory
+		env = append(env, "GO111MODULE=off")
+	} else {
+		env = append(env, "GO111MODULE=on")
+	}
+
+	var dir, origDir string
+
+	if imports.modules != nil {
+		var err error
+		if dir, err = os.MkdirTemp("", "goeval*"); err != nil {
+			log.Fatal(err)
+		}
+		defer os.Remove(dir)
+
+		moduleName := filepath.Base(dir)
+
+		origDir, err = os.Getwd()
+		if err != nil {
+			log.Fatal("getwd:", err)
+		}
+
+		gomod := dir + "/go.mod"
+		if err := os.WriteFile(gomod, []byte("module "+moduleName+"\n"), 0600); err != nil {
+			log.Fatal("go.mod:", err)
+		}
+		defer os.Remove(gomod)
+
+		var gogetArgs []string
+		gogetArgs = append(gogetArgs, "get", "--")
+		for mod, ver := range imports.modules {
+			gogetArgs = append(gogetArgs, mod+"@"+ver)
+		}
+		for _, path := range imports.packages {
+			if _, seen := imports.modules[path]; !seen {
+				gogetArgs = append(gogetArgs, path)
+			}
+		}
+
+		cmd := exec.Command("go", gogetArgs...)
+		cmd.Env = env
+		cmd.Dir = dir
+		cmd.Stdin = nil
+		cmd.Stdout = nil
+		cmd.Stdout = os.Stdout
+		// go get is too verbose :(
+		cmd.Stderr = nil
+		if err = run(cmd); err != nil {
+			log.Fatal("go get failure:", err)
+		}
+		// log.Println("go get OK.")
+		defer os.Remove(dir + "/go.sum")
+	}
+
 	var src bytes.Buffer
 	src.WriteString("package main\n")
-	for name, path := range imports {
-		fmt.Fprintf(&src, "import %s %q\n", name, path)
+	for alias, path := range imports.packages {
+		if len(alias) > 2 && alias[1] == ' ' {
+			switch alias[0] {
+			case '.', '_':
+				alias = alias[:1]
+			case ' ': // no alias
+				fmt.Fprintf(&src, "import %q\n", path)
+				continue
+			}
+		}
+		fmt.Fprintf(&src, "import %s %q\n", alias, path)
 	}
-	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n//line :1\n")
+	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
+	if origDir != "" {
+		fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
+	}
+	src.WriteString("//line :1\n")
 	src.WriteString(code)
 	src.WriteString("\n}\n")
 
@@ -134,23 +262,24 @@ func _main() error {
 	var f *os.File
 	var err error
 	if !noRun {
-		f, err = ioutil.TempFile("", "*.go")
+		f, err = ioutil.TempFile(dir, "*.go")
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer os.Remove(f.Name())
 		defer f.Close()
+		defer os.Remove(f.Name())
 	} else {
 		f = os.Stdout
 	}
 
-	// Run in GOPATH mode, ignoring any code in the current directory
-	env := append(os.Environ(), "GO111MODULE=off")
-
 	switch goimports {
 	case "goimports":
 		var out []byte
-		out, err = goimp.Process("", src.Bytes(), &goimp.Options{
+		var filename string // filename is used to locate the relevant go.mod
+		if imports.packages != nil {
+			filename = f.Name()
+		}
+		out, err = goimp.Process(filename, src.Bytes(), &goimp.Options{
 			Fragment:   false,
 			AllErrors:  false,
 			Comments:   true,
@@ -166,15 +295,39 @@ func _main() error {
 	default:
 		cmd := exec.Command(goimports)
 		cmd.Env = env
+		cmd.Dir = dir
 		cmd.Stdin = &src
 		cmd.Stdout = f
 		cmd.Stderr = os.Stderr
-		err = cmd.Run()
+		err = run(cmd)
 	}
 	if err != nil {
 		return err
 	}
+
 	if noRun {
+		// dump go.mod, go.sum
+		if imports.modules != nil {
+			gomod, err := os.Open(dir + "/go.mod")
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("-- go.mod --")
+			defer gomod.Close()
+			io.Copy(os.Stdout, gomod)
+			gosum, err := os.Open(dir + "/go.sum")
+			switch {
+
+			case errors.Is(err, os.ErrNotExist):
+			case err != nil:
+				log.Fatal(err)
+			default:
+				fmt.Println("-- go.sum --")
+				defer gosum.Close()
+				io.Copy(os.Stdout, gosum)
+			}
+		}
+
 		return nil
 	}
 	err = f.Close()
@@ -182,15 +335,40 @@ func _main() error {
 		return err
 	}
 
-	cmd := exec.Command("go", append([]string{
-		"run",
-		f.Name(),
-		"--",
-	}, args...)...)
+	if origDir != "" {
+		/*
+			// Do we need to run "go get" again after "goimports"?
+			goget := exec.Command("go", "get", ".")
+			goget.Env = env
+			goget.Dir = dir
+			goget.Stdout = os.Stdout
+			goget.Stderr = os.Stderr
+			run(goget)
+		*/
+
+		/*
+			// Debug
+			log.Println(origDir)
+			showDir := exec.Command("sh", "-c", "ls -l;cat "+f.Name()+";echo '-- go.mod --';cat go.mod;echo '-- go.sum --';cat go.sum")
+			showDir.Env = env
+			showDir.Dir = dir
+			showDir.Stdout = os.Stdout
+			run(showDir)
+		*/
+	}
+
+	var runArgs = make([]string, 0, 3+len(args))
+	runArgs = append(runArgs, "run", f.Name(), "--")
+	runArgs = append(runArgs, args...)
+
+	// log.Println("go", runArgs)
+
+	cmd := exec.Command("go", runArgs...)
 	cmd.Env = env
+	cmd.Dir = dir // In Go module mode we run from the temp module dir
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	// exec.ExitError is handled in caller
-	return cmd.Run()
+	return run(cmd)
 }
