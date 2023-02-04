@@ -153,7 +153,7 @@ func _main() error {
 		out, err = goimp.Process("", src.Bytes(), &goimp.Options{
 			Fragment:   false,
 			AllErrors:  false,
-			Comments:   false,
+			Comments:   true,
 			TabIndent:  true,
 			TabWidth:   8,
 			FormatOnly: false,
