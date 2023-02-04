@@ -51,12 +51,13 @@ func (imp *imports) Set(s string) error {
 	} else if alias == "" {
 		return fmt.Errorf("%q: empty alias", s)
 	} else if alias == "_" || alias == "." {
-		alias = alias + " " + path // special alias
+		tmpPath, _, _ := strings.Cut(path, "@")
+		alias = alias + " " + tmpPath // special alias
 	} else if strings.Contains(alias, " ") {
 		return fmt.Errorf("%q: invalid alias", s)
 	}
 	var p2 string
-	if p2, version, ok = strings.Cut(s, "@"); ok {
+	if p2, version, ok = strings.Cut(path, "@"); ok {
 		if version == "" {
 			return fmt.Errorf("%q: empty module version", s)
 		}
