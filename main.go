@@ -28,6 +28,7 @@ import (
 	"os/exec" // Go 1.19 behaviour enforced in go.mod. See https://blog.golang.org/path-security and https://pkg.go.dev/os/exec
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/mod/module"
 	goimp "golang.org/x/tools/imports"
@@ -95,6 +96,26 @@ func (imp *imports) Set(s string) error {
 	return nil
 }
 
+func runSilent(cmd *exec.Cmd) error {
+	return cmd.Run()
+}
+
+func runX(cmd *exec.Cmd) error {
+	// Inject -x in go commands
+	if cmd.Args[0] == "go" {
+		cmd.Args = append([]string{"go", cmd.Args[1], "-x"}, cmd.Args[2:]...)
+	}
+	fmt.Printf("%s\n", cmd.Args)
+	return cmd.Run()
+}
+
+func runTime(cmd *exec.Cmd) error {
+	defer func(start time.Time) {
+		fmt.Fprintf(os.Stderr, "run %v %v\n", time.Since(start), cmd.Args)
+	}(time.Now())
+	return cmd.Run()
+}
+
 func main() {
 	err := _main()
 	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() > 0 {
@@ -115,6 +136,8 @@ func _main() error {
 
 	var noRun bool // -E, like "cc -E"
 	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it")
+
+	showCmds := flag.Bool("x", false, "print the commands")
 
 	flag.Usage = func() {
 		prog := os.Args[0]
@@ -150,6 +173,11 @@ func _main() error {
 	}
 
 	args := flag.Args()[1:]
+
+	run := runSilent
+	if *showCmds {
+		run = runX
+	}
 
 	env := os.Environ()
 	if imports.modules == nil {
@@ -200,7 +228,7 @@ func _main() error {
 		cmd.Stdout = os.Stdout
 		// go get is too verbose :(
 		cmd.Stderr = nil
-		if err = cmd.Run(); err != nil {
+		if err = run(cmd); err != nil {
 			log.Fatal("go get failure:", err)
 		}
 		// log.Println("go get OK.")
@@ -271,7 +299,7 @@ func _main() error {
 		cmd.Stdin = &src
 		cmd.Stdout = f
 		cmd.Stderr = os.Stderr
-		err = cmd.Run()
+		err = run(cmd)
 	}
 	if err != nil {
 		return err
@@ -315,7 +343,7 @@ func _main() error {
 			goget.Dir = dir
 			goget.Stdout = os.Stdout
 			goget.Stderr = os.Stderr
-			goget.Run()
+			run(goget)
 		*/
 
 		/*
@@ -325,7 +353,7 @@ func _main() error {
 			showDir.Env = env
 			showDir.Dir = dir
 			showDir.Stdout = os.Stdout
-			showDir.Run()
+			run(showDir)
 		*/
 	}
 
@@ -342,5 +370,5 @@ func _main() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	// exec.ExitError is handled in caller
-	return cmd.Run()
+	return run(cmd)
 }
