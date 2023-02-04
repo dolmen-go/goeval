@@ -23,10 +23,27 @@ $ GO111MODULE=off go get github.com/klauspost/cpuid && goeval -i github.com/klau
 3
 ```
 
+### Go modules
+
+Use `-i <module@version>` to import a Go module.
+
+```console
+$ goeval -i .=github.com/bitfield/script@v0.21.4 'Exec("ls").Stdout()'
+LICENSE
+README.md
+go.mod
+go.sum
+goeval
+main.go
+
+$ goeval -i github.com/klauspost/cpuid/v2@v2.2.3 -i github.com/klauspost/cpuid/v2 'fmt.Println(cpuid.CPU.X64Level())'
+3
+```
+
 ## Install
 
 ```console
-$ go install github.com/dolmen-go/goeval@master
+$ go install github.com/dolmen-go/goeval@latest
 ```
 
 ## Uninstall
@@ -37,6 +54,8 @@ $ go clean -i github.com/dolmen-go/goeval
 
 ## How does it work?
 
+### GOPATH mode
+
 `goeval` just wraps your code with the necessary text to build a `main` package and a `main` func with the given imports, pass it through the [`goimports` tool](https://godoc.org/golang.org/x/tools/cmd/goimports) (to automatically add missing imports), writes in a temporary file and calls `go run` with [`GO111MODULE=off`](https://golang.org/ref/mod#mod-commands).
 
 `goimports` is enabled by default, but you can disable it to force explicit imports (for forward safety):
@@ -45,6 +64,10 @@ $ go clean -i github.com/dolmen-go/goeval
 $ goeval -goimports= -i fmt 'fmt.Println("Hello, world!")'
 Hello, world!
 ```
+
+### Go module mode
+
+When at least one `module@version` is imported with `-i`, Go module mode is enabled. Two files are generated: `tmpxxxx.go` and `go.mod`. Then `go get .` is run to resolve and fetch dependencies, and then `go run`.
 
 ## Debugging
 
