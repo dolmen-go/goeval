@@ -179,17 +179,19 @@ func _main() error {
 		run = runX
 	}
 
+	moduleMode := imports.modules != nil
+
 	env := os.Environ()
-	if imports.modules == nil {
+	if moduleMode {
+		env = append(env, "GO111MODULE=on")
+	} else {
 		// Run in GOPATH mode, ignoring any code in the current directory
 		env = append(env, "GO111MODULE=off")
-	} else {
-		env = append(env, "GO111MODULE=on")
 	}
 
 	var dir, origDir string
 
-	if imports.modules != nil {
+	if moduleMode {
 		var err error
 		if dir, err = os.MkdirTemp("", "goeval*"); err != nil {
 			log.Fatal(err)
@@ -307,7 +309,7 @@ func _main() error {
 
 	if noRun {
 		// dump go.mod, go.sum
-		if imports.modules != nil {
+		if moduleMode {
 			gomod, err := os.Open(dir + "/go.mod")
 			if err != nil {
 				log.Fatal(err)
