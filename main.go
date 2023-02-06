@@ -96,6 +96,8 @@ func (imp *imports) Set(s string) error {
 	return nil
 }
 
+var run = runSilent
+
 func runSilent(cmd *exec.Cmd) error {
 	return cmd.Run()
 }
@@ -174,7 +176,6 @@ func _main() error {
 
 	args := flag.Args()[1:]
 
-	run := runSilent
 	if *showCmds {
 		run = runX
 	}
