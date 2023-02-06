@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"golang.org/x/mod/module"
-	"golang.org/x/mod/semver"
 	goimp "golang.org/x/tools/imports"
 )
 
@@ -73,7 +72,7 @@ func (imp *imports) Set(s string) error {
 			imp.modules = make(map[string]string)
 		}
 		imp.modules[path] = version
-		imp.onlySemVer = imp.onlySemVer && semver.IsValid(version) && version == semver.Canonical(version)
+		imp.onlySemVer = imp.onlySemVer && version == module.CanonicalVersion(version)
 	} else if alias == "" {
 		alias = "  " + path // special alias
 	}
