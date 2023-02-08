@@ -261,15 +261,14 @@ func _main() error {
 		}
 
 		// fmt.Println("preferCache", preferCache)
+		if preferCache {
+			// As we found all modules in the cache, tell "go get" and "go run" to not use the proxy.
+			// See https://go.dev/issue/43646
+			env = append(env, "GOPROXY=file://"+filepath.ToSlash(gomodcache)+"/cache/download")
+		}
 
 		cmd := exec.Command("go", gogetArgs...)
-		if preferCache {
-			// As we found all modules in the cache, tell "go get" to not use the proxy.
-			// See https://go.dev/issue/43646
-			cmd.Env = append(env, "GOPROXY=file://"+filepath.ToSlash(gomodcache)+"/cache/download")
-		} else {
-			cmd.Env = env
-		}
+		cmd.Env = env
 		cmd.Dir = dir
 		cmd.Stdin = nil
 		cmd.Stdout = nil
