@@ -253,7 +253,7 @@ func _main() error {
 		fmt.Fprintf(&src, "import %s %q\n", alias, path)
 	}
 	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
-	if origDir != "" {
+	if moduleMode {
 		fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
 	}
 	src.WriteString("//line :1\n")
@@ -338,7 +338,7 @@ func _main() error {
 		return err
 	}
 
-	if origDir != "" {
+	if moduleMode {
 		/*
 			// Do we need to run "go get" again after "goimports"?
 			goget := exec.Command("go", "get", ".")
