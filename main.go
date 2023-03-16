@@ -249,7 +249,8 @@ func _main() error {
 		for mod, ver := range imports.modules {
 			gogetArgs = append(gogetArgs, mod+"@"+ver)
 			if preferCache {
-				// Keep preferCache as long as we find modules in the cache
+				// Keep preferCache as long as we find modules in the cache.
+				// Structure of the cache is documented here: https://go.dev/ref/mod#module-cache
 				_, err := os.Stat(gomodcache + "/cache/download/" + mod + "/@v/" + ver + ".mod")
 				preferCache = err == nil
 			}
