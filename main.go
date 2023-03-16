@@ -264,7 +264,8 @@ func _main() error {
 		if preferCache {
 			// As we found all modules in the cache, tell "go get" and "go run" to not use the proxy.
 			// See https://go.dev/issue/43646
-			env = append(env, "GOPROXY=file://"+filepath.ToSlash(gomodcache)+"/cache/download")
+			// env = append(env, "GOPROXY=file://"+filepath.ToSlash(gomodcache)+"/cache/download")
+			env = append(env, "GOPROXY=off")
 		}
 
 		cmd := exec.Command("go", gogetArgs...)
