@@ -35,8 +35,9 @@ import (
 )
 
 type imports struct {
-	packages map[string]string // alias => import path
-	modules  map[string]string // module path => version
+	packages   map[string]string // alias => import path
+	modules    map[string]string // module path => version
+	onlySemVer bool
 }
 
 func (*imports) String() string {
@@ -71,6 +72,7 @@ func (imp *imports) Set(s string) error {
 			imp.modules = make(map[string]string)
 		}
 		imp.modules[path] = version
+		imp.onlySemVer = imp.onlySemVer && version == module.CanonicalVersion(version)
 	} else if alias == "" {
 		alias = "  " + path // special alias
 	}
@@ -104,7 +106,7 @@ func runSilent(cmd *exec.Cmd) error {
 
 func runX(cmd *exec.Cmd) error {
 	// Inject -x in go commands
-	if cmd.Args[0] == "go" {
+	if cmd.Args[0] == "go" && cmd.Args[1] != "env" {
 		cmd.Args = append([]string{"go", cmd.Args[1], "-x"}, cmd.Args[2:]...)
 	}
 	fmt.Printf("%s\n", cmd.Args)
@@ -118,6 +120,25 @@ func runTime(cmd *exec.Cmd) error {
 	return cmd.Run()
 }
 
+var goCmd = "go"
+
+func getGOMODCACHE(env []string) (string, error) {
+	var out bytes.Buffer
+	cmd := exec.Command(goCmd, "env", "GOMODCACHE")
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = &out
+	cmd.Env = env
+	err := run(cmd)
+	if err != nil {
+		return "", err
+	}
+	b := bytes.TrimRight(out.Bytes(), "\r\n")
+	if len(b) == 0 {
+		return "", errors.New("can't retrieve GOMODCACHE")
+	}
+	return string(b), nil
+}
+
 func main() {
 	err := _main()
 	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() > 0 {
@@ -129,7 +150,8 @@ func main() {
 
 func _main() error {
 	imports := imports{
-		packages: map[string]string{"  ": "os"},
+		packages:   map[string]string{"  ": "os"},
+		onlySemVer: true,
 	}
 	flag.Var(&imports, "i", "import package: [alias=]import-path")
 
@@ -193,6 +215,16 @@ func _main() error {
 	var dir, origDir string
 
 	if moduleMode {
+		// "go get" is not yet as smart as we want, so let's help
+		// https://go.dev/issue/43646
+		preferCache := imports.onlySemVer
+		var gomodcache string
+		if preferCache {
+			var err error
+			gomodcache, err = getGOMODCACHE(env)
+			preferCache = err == nil
+		}
+
 		var err error
 		if dir, err = os.MkdirTemp("", "goeval*"); err != nil {
 			log.Fatal(err)
@@ -216,11 +248,25 @@ func _main() error {
 		gogetArgs = append(gogetArgs, "get", "--")
 		for mod, ver := range imports.modules {
 			gogetArgs = append(gogetArgs, mod+"@"+ver)
+			if preferCache {
+				// Keep preferCache as long as we find modules in the cache.
+				// Structure of the cache is documented here: https://go.dev/ref/mod#module-cache
+				_, err := os.Stat(gomodcache + "/cache/download/" + mod + "/@v/" + ver + ".mod")
+				preferCache = err == nil
+			}
 		}
 		for _, path := range imports.packages {
 			if _, seen := imports.modules[path]; !seen {
 				gogetArgs = append(gogetArgs, path)
 			}
+		}
+
+		// fmt.Println("preferCache", preferCache)
+		if preferCache {
+			// As we found all modules in the cache, tell "go get" and "go run" to not use the proxy.
+			// See https://go.dev/issue/43646
+			// env = append(env, "GOPROXY=file://"+filepath.ToSlash(gomodcache)+"/cache/download")
+			env = append(env, "GOPROXY=off")
 		}
 
 		cmd := exec.Command("go", gogetArgs...)
