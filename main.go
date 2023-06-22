@@ -106,8 +106,8 @@ func runSilent(cmd *exec.Cmd) error {
 
 func runX(cmd *exec.Cmd) error {
 	// Inject -x in go commands
-	if cmd.Args[0] == "go" && cmd.Args[1] != "env" {
-		cmd.Args = append([]string{"go", cmd.Args[1], "-x"}, cmd.Args[2:]...)
+	if cmd.Args[0] == goCmd && cmd.Args[1] != "env" {
+		cmd.Args = append([]string{goCmd, cmd.Args[1], "-x"}, cmd.Args[2:]...)
 	}
 	fmt.Printf("%s\n", cmd.Args)
 	return cmd.Run()
@@ -269,7 +269,7 @@ func _main() error {
 			env = append(env, "GOPROXY=off")
 		}
 
-		cmd := exec.Command("go", gogetArgs...)
+		cmd := exec.Command(goCmd, gogetArgs...)
 		cmd.Env = env
 		cmd.Dir = dir
 		cmd.Stdin = nil
@@ -387,7 +387,7 @@ func _main() error {
 	if moduleMode {
 		/*
 			// Do we need to run "go get" again after "goimports"?
-			goget := exec.Command("go", "get", ".")
+			goget := exec.Command(goCmd, "get", ".")
 			goget.Env = env
 			goget.Dir = dir
 			goget.Stdout = os.Stdout
@@ -410,9 +410,9 @@ func _main() error {
 	runArgs = append(runArgs, "run", f.Name(), "--")
 	runArgs = append(runArgs, args...)
 
-	// log.Println("go", runArgs)
+	// log.Println(goCmd, runArgs)
 
-	cmd := exec.Command("go", runArgs...)
+	cmd := exec.Command(goCmd, runArgs...)
 	cmd.Env = env
 	cmd.Dir = dir // In Go module mode we run from the temp module dir
 	cmd.Stdin = os.Stdin
