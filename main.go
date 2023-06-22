@@ -153,7 +153,7 @@ func _main() error {
 		packages:   map[string]string{"  ": "os"},
 		onlySemVer: true,
 	}
-	flag.Var(&imports, "i", "import package: [alias=]import-path")
+	flag.Var(&imports, "i", "* import package: [alias=]import-path\n* switch to Go module mode and import package: [alias=]import-path@version")
 
 	var goimports string
 	flag.StringVar(&goimports, "goimports", "goimports", "goimports tool name, to use an alternate tool or just disable it")
