@@ -158,6 +158,8 @@ func _main() error {
 	var goimports string
 	flag.StringVar(&goimports, "goimports", "goimports", "goimports tool name, to use an alternate tool or just disable it")
 
+	flag.StringVar(&goCmd, "go", "go", "go command path")
+
 	var noRun bool // -E, like "cc -E"
 	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it")
 
@@ -197,6 +199,12 @@ func _main() error {
 	}
 
 	args := flag.Args()[1:]
+
+	if goCmdResolved, err := exec.LookPath(goCmd); err != nil {
+		return fmt.Errorf("%q: %v", goCmd, err)
+	} else {
+		goCmd = goCmdResolved
+	}
 
 	if *showCmds {
 		run = runX
