@@ -26,3 +26,6 @@ jobs:
 
     - name: Test
       run: ./goeval 'fmt.Println("Hello, world")'
+
+    - name: Check version
+      run: ./goeval 'fmt.Println(runtime.Version())'
