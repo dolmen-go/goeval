@@ -98,6 +98,9 @@ func (imp *imports) Set(s string) error {
 	return nil
 }
 
+// Reference code for running the "go" command:
+// https://github.com/golang/dl/blob/master/internal/version/version.go#L58
+
 var run = runSilent
 
 func runSilent(cmd *exec.Cmd) error {
