@@ -21,11 +21,15 @@ ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 
 $ GO111MODULE=off go get github.com/klauspost/cpuid && goeval -i github.com/klauspost/cpuid/v2 'fmt.Println(cpuid.CPU.X64Level())'
 3
+
+$ goeval 'http.Handle("/",http.FileServer(http.Dir(".")));http.ListenAndServe(":8084",nil)'
 ```
 
 ### Go modules
 
-Use `-i <module@version>` to import a Go module.
+Use `-i <module>@<version>` to import a Go module.
+
+Use `-i <alias>=<module>@<version>` to import a Go module and import the package with the given alias.
 
 ```console
 $ goeval -i .=github.com/bitfield/script@v0.21.4 'Exec("ls").Stdout()'
@@ -37,6 +41,8 @@ goeval
 main.go
 
 $ goeval -i github.com/klauspost/cpuid/v2@v2.2.3 -i github.com/klauspost/cpuid/v2 'fmt.Println(cpuid.CPU.X64Level())'
+3
+$ goeval -i cpuid=github.com/klauspost/cpuid/v2@v2.2.3 'fmt.Println(cpuid.CPU.X64Level())'
 3
 ```
 
