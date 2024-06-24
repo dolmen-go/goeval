@@ -23,6 +23,8 @@ $ GO111MODULE=off go get github.com/klauspost/cpuid && goeval -i github.com/klau
 3
 
 $ goeval 'http.Handle("/",http.FileServer(http.Dir(".")));http.ListenAndServe(":8084",nil)'
+
+$ goeval -i .=net/http 'Handle("/",FileServer(Dir(".")));ListenAndServe(":8084",nil)'
 ```
 
 ### Go modules
@@ -92,13 +94,13 @@ Here are some tricks that have worked in the past, that may still work in the la
 The supported way:
 
 ```console
-$ goeval 'var fact func(int)int;fact=func(n int)int{if n==1{return 1};return n*fact(n-1);};fmt.Println(fact(5))'
+$ goeval 'var fact func(int)int;fact=func(n int)int{if n==1{return 1};return n*fact(n-1)};fmt.Println(fact(5))'
 ```
 
 The hacky way:
 
 ```console
-$ goeval 'fmt.Println(fact(5));};func fact(n int)int{if n==1{return 1};return n*fact(n-1)'
+$ goeval 'fmt.Println(fact(5))};func fact(n int)int{if n==1{return 1};return n*fact(n-1)'
 ```
 
 ### Use generics
