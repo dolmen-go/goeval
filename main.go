@@ -404,16 +404,6 @@ func _main() error {
 			goget.Stderr = os.Stderr
 			run(goget)
 		*/
-
-		/*
-			// Debug
-			log.Println(origDir)
-			showDir := exec.Command("sh", "-c", "ls -l;cat "+f.Name()+";echo '-- go.mod --';cat go.mod;echo '-- go.sum --';cat go.sum")
-			showDir.Env = env
-			showDir.Dir = dir
-			showDir.Stdout = os.Stdout
-			run(showDir)
-		*/
 	}
 
 	var runArgs = make([]string, 0, 3+len(args))
