@@ -33,6 +33,8 @@ import (
 	goimp "golang.org/x/tools/imports"
 )
 
+// imports is the storage for -i flags
+// imports implements interface flag.Value.
 type imports struct {
 	packages   map[string]string // alias => import path
 	modules    map[string]string // module path => version
