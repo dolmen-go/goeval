@@ -378,6 +378,18 @@ func _main() error {
 		return err
 	}
 
+	/*
+		if moduleMode {
+			// Do we need to run "go get" again after "goimports"?
+			goget := exec.Command(goCmd, "get", ".")
+			goget.Env = env
+			goget.Dir = dir
+			goget.Stdout = os.Stdout
+			goget.Stderr = os.Stderr
+			run(goget)
+		}
+	*/
+
 	if noRun {
 		// dump go.mod, go.sum
 		if moduleMode {
@@ -407,18 +419,6 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-
-	/*
-		if moduleMode {
-				// Do we need to run "go get" again after "goimports"?
-				goget := exec.Command(goCmd, "get", ".")
-				goget.Env = env
-				goget.Dir = dir
-				goget.Stdout = os.Stdout
-				goget.Stderr = os.Stderr
-				run(goget)
-		}
-	*/
 
 	var runArgs = make([]string, 0, 3+len(args))
 	runArgs = append(runArgs, "run", srcFilename, "--")
