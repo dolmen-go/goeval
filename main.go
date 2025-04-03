@@ -160,14 +160,14 @@ func _main() error {
 	flag.Var(&imports, "i", "* import package: [alias=]import-path\n* switch to Go module mode and import package: [alias=]import-path@version")
 
 	var goimports string
-	flag.StringVar(&goimports, "goimports", "goimports", "goimports tool name, to use an alternate tool or just disable it")
+	flag.StringVar(&goimports, "goimports", "goimports", "goimports tool name, to use an alternate tool or just disable it.")
 
-	flag.StringVar(&goCmd, "go", "go", "go command path")
+	flag.StringVar(&goCmd, "go", "go", "go command path.")
 
 	var noRun bool // -E, like "cc -E"
-	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it")
+	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it.")
 
-	showCmds := flag.Bool("x", false, "print the commands")
+	showCmds := flag.Bool("x", false, "print commands executed.")
 
 	flag.Usage = func() {
 		prog := os.Args[0]
