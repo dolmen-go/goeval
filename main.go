@@ -22,7 +22,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec" // Go 1.19 behaviour enforced in go.mod. See https://blog.golang.org/path-security and https://pkg.go.dev/os/exec
@@ -194,7 +193,7 @@ func _main() error {
 	}
 	code := flag.Arg(0)
 	if code == "-" {
-		b, err := ioutil.ReadAll(os.Stdin)
+		b, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return err
 		}
@@ -322,7 +321,7 @@ func _main() error {
 	var f *os.File
 	var err error
 	if !noRun {
-		f, err = ioutil.TempFile(dir, "*.go")
+		f, err = os.CreateTemp(dir, "*.go")
 		if err != nil {
 			log.Fatal(err)
 		}
