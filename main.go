@@ -316,8 +316,6 @@ func _main() error {
 	src.WriteString(code)
 	src.WriteString("\n}\n")
 
-	// fmt.Print(src.String())
-
 	var f *os.File
 	var err error
 	if !noRun {
