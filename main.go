@@ -167,6 +167,9 @@ func _main() error {
 	var noRun bool // -E, like "cc -E"
 	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it.")
 
+	var noRunPlay bool
+	flag.BoolVar(&noRunPlay, "Eplay", false, "just dump the assembled source for posting on https://go.dev/play")
+
 	showCmds := flag.Bool("x", false, "print commands executed.")
 
 	flag.Usage = func() {
@@ -213,6 +216,8 @@ func _main() error {
 	if *showCmds {
 		run = runX
 	}
+
+	noRun = noRun || noRunPlay // noRunPlay implies noRun
 
 	moduleMode := imports.modules != nil
 
@@ -310,11 +315,15 @@ func _main() error {
 		}
 		fmt.Fprintf(&src, "import %s %q\n", alias, path)
 	}
-	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
-	if moduleMode {
-		fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
+	if noRunPlay {
+		src.WriteString("func main() {\n")
+	} else {
+		src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
+		if moduleMode {
+			fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
+		}
+		src.WriteString("//line :1\n")
 	}
-	src.WriteString("//line :1\n")
 	src.WriteString(code)
 	src.WriteString("\n}\n")
 
