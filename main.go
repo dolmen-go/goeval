@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -170,6 +171,10 @@ func _main() error {
 	var noRunPlay bool
 	flag.BoolVar(&noRunPlay, "Eplay", false, "just dump the assembled source for posting on https://go.dev/play")
 
+	// TODO allow to optionally set a different endpoint
+	var play bool
+	flag.BoolVar(&play, "play", false, "run the code remotely on https://go.dev/play")
+
 	showCmds := flag.Bool("x", false, "print commands executed.")
 
 	flag.Usage = func() {
@@ -217,7 +222,8 @@ func _main() error {
 		run = runX
 	}
 
-	noRun = noRun || noRunPlay // noRunPlay implies noRun
+	noRunPlay = noRunPlay || play      // play implies noRunPlay: we don't need the hack to run locally
+	noRun = noRun || noRunPlay || play // noRunPlay and play imply noRun
 
 	moduleMode := imports.modules != nil
 
@@ -340,6 +346,8 @@ func _main() error {
 		defer os.Remove(f.Name())
 		srcOut = f
 		srcFilename = f.Name()
+	} else if play {
+		srcOut = new(bytes.Buffer)
 	} else {
 		srcOut = os.Stdout
 	}
@@ -381,7 +389,6 @@ func _main() error {
 	/*
 		// Do we need to run "go get" again after "goimports"?
 		if moduleMode {
-			// Do we need to run "go get" again after "goimports"?
 			goget := exec.Command(goCmd, "get", ".")
 			goget.Env = env
 			goget.Dir = dir
@@ -413,7 +420,7 @@ func _main() error {
 		return run(cmd)
 	}
 
-	// From this point we are handling -E, -Eplay only
+	// From this point we are handling -E, -Eplay, -play only
 
 	// dump go.mod, go.sum
 	if moduleMode {
@@ -437,5 +444,39 @@ func _main() error {
 		}
 	}
 
-	return nil
+	if !play {
+		return nil
+	}
+
+	// Let's run remotely on a Go Playground.
+	// We need to send via HTTP. Let's call ourself instead of embedding the HTTP stack!
+
+	playgroundClient := new(bytes.Buffer)
+	// TODO: set a User-Agent
+	io.WriteString(playgroundClient, ""+
+		`resp, err := http.PostForm("https://go.dev/_/compile", url.Values{"version": {"2"}, "body":{`)
+	io.WriteString(playgroundClient, strconv.Quote(srcOut.(*bytes.Buffer).String()))
+	io.WriteString(playgroundClient, ""+
+		`}});`+
+		`if err != nil { log.Fatal(err) };`+
+		`defer resp.Body.Close();`+
+		// `resp.Body = io.NopCloser(io.TeeReader(resp.Body, os.Stdout));`+ // Enable for debugging
+		`var r struct{ Events []struct{ Delay time.Duration; Message string; Kind string;};};`+
+		`if err := json.NewDecoder(resp.Body).Decode(&r); err != nil { log.Fatal(err) };`+
+		// Replay events
+		`for _, ev := range r.Events {`+
+		`time.Sleep(ev.Delay);`+
+		`if ev.Kind=="stdout" { io.WriteString(os.Stdout, ev.Message) } else { io.WriteString(os.Stderr, ev.Message) };`+
+		`}`,
+	)
+
+	// Run goeval with the code submitted on stdin
+	// For debugging the playgroundClient code above, just inject -E here
+	cmd := exec.Command(os.Args[0], "-i=encoding/json", "-i=io", "-i=log", "-i=net/http", "-i=net/url", "-i=os", "-i=time", "-")
+	cmd.Env = nil // We must not use 'env' here
+	cmd.Dir = dir
+	cmd.Stdin = playgroundClient
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
