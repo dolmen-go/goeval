@@ -327,25 +327,30 @@ func _main() error {
 	src.WriteString(code)
 	src.WriteString("\n}\n")
 
-	var f *os.File
-	var err error
+	var (
+		srcFilename string
+		srcOut      io.Writer // The final result after goimports
+	)
 	if !noRun {
-		f, err = os.CreateTemp(dir, "*.go")
+		f, err := os.CreateTemp(dir, "*.go")
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer f.Close()
 		defer os.Remove(f.Name())
+		srcOut = f
+		srcFilename = f.Name()
 	} else {
-		f = os.Stdout
+		srcOut = os.Stdout
 	}
 
+	var err error
 	switch goimports {
 	case "goimports":
 		var out []byte
 		var filename string // filename is used to locate the relevant go.mod
 		if imports.packages != nil {
-			filename = f.Name()
+			filename = srcFilename
 		}
 		out, err = goimp.Process(filename, src.Bytes(), &goimp.Options{
 			Fragment:   false,
@@ -356,16 +361,16 @@ func _main() error {
 			FormatOnly: false,
 		})
 		if err == nil {
-			_, err = f.Write(out)
+			_, err = srcOut.Write(out)
 		}
 	case "":
-		_, err = f.Write(src.Bytes())
+		_, err = srcOut.Write(src.Bytes())
 	default:
 		cmd := exec.Command(goimports)
 		cmd.Env = env
 		cmd.Dir = dir
 		cmd.Stdin = &src
-		cmd.Stdout = f
+		cmd.Stdout = srcOut
 		cmd.Stderr = os.Stderr
 		err = run(cmd)
 	}
@@ -380,9 +385,9 @@ func _main() error {
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println("-- go.mod --")
+			io.WriteString(srcOut, "-- go.mod --\n")
 			defer gomod.Close()
-			io.Copy(os.Stdout, gomod)
+			io.Copy(srcOut, gomod)
 
 			gosum, err := os.Open(dir + "/go.sum")
 			switch {
@@ -390,15 +395,15 @@ func _main() error {
 			case err != nil:
 				log.Fatal(err)
 			default:
-				fmt.Println("-- go.sum --")
+				io.WriteString(srcOut, "-- go.sum --\n")
 				defer gosum.Close()
-				io.Copy(os.Stdout, gosum)
+				io.Copy(srcOut, gosum)
 			}
 		}
 
 		return nil
 	}
-	err = f.Close()
+	err = srcOut.(io.Closer).Close()
 	if err != nil {
 		return err
 	}
@@ -416,7 +421,7 @@ func _main() error {
 	*/
 
 	var runArgs = make([]string, 0, 3+len(args))
-	runArgs = append(runArgs, "run", f.Name(), "--")
+	runArgs = append(runArgs, "run", srcFilename, "--")
 	runArgs = append(runArgs, args...)
 
 	// log.Println(goCmd, runArgs)
