@@ -379,6 +379,7 @@ func _main() error {
 	}
 
 	/*
+		// Do we need to run "go get" again after "goimports"?
 		if moduleMode {
 			// Do we need to run "go get" again after "goimports"?
 			goget := exec.Command(goCmd, "get", ".")
@@ -390,48 +391,51 @@ func _main() error {
 		}
 	*/
 
-	if noRun {
-		// dump go.mod, go.sum
-		if moduleMode {
-			gomod, err := os.Open(dir + "/go.mod")
-			if err != nil {
-				log.Fatal(err)
-			}
-			io.WriteString(srcOut, "-- go.mod --\n")
-			defer gomod.Close()
-			io.Copy(srcOut, gomod)
-
-			gosum, err := os.Open(dir + "/go.sum")
-			switch {
-			case errors.Is(err, os.ErrNotExist): // ignore
-			case err != nil:
-				log.Fatal(err)
-			default:
-				io.WriteString(srcOut, "-- go.sum --\n")
-				defer gosum.Close()
-				io.Copy(srcOut, gosum)
-			}
+	if !noRun {
+		err = srcOut.(io.Closer).Close()
+		if err != nil {
+			return err
 		}
 
-		return nil
+		var runArgs = make([]string, 0, 3+len(args))
+		runArgs = append(runArgs, "run", srcFilename, "--")
+		runArgs = append(runArgs, args...)
+
+		// log.Println(goCmd, runArgs)
+
+		cmd := exec.Command(goCmd, runArgs...)
+		cmd.Env = env
+		cmd.Dir = dir // In Go module mode we run from the temp module dir
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		// exec.ExitError is handled in caller
+		return run(cmd)
 	}
-	err = srcOut.(io.Closer).Close()
-	if err != nil {
-		return err
+
+	// From this point we are handling -E, -Eplay only
+
+	// dump go.mod, go.sum
+	if moduleMode {
+		gomod, err := os.Open(dir + "/go.mod")
+		if err != nil {
+			log.Fatal(err)
+		}
+		io.WriteString(srcOut, "-- go.mod --\n")
+		defer gomod.Close()
+		io.Copy(srcOut, gomod)
+
+		gosum, err := os.Open(dir + "/go.sum")
+		switch {
+		case errors.Is(err, os.ErrNotExist): // ignore
+		case err != nil:
+			log.Fatal(err)
+		default:
+			io.WriteString(srcOut, "-- go.sum --\n")
+			defer gosum.Close()
+			io.Copy(srcOut, gosum)
+		}
 	}
 
-	var runArgs = make([]string, 0, 3+len(args))
-	runArgs = append(runArgs, "run", srcFilename, "--")
-	runArgs = append(runArgs, args...)
-
-	// log.Println(goCmd, runArgs)
-
-	cmd := exec.Command(goCmd, runArgs...)
-	cmd.Env = env
-	cmd.Dir = dir // In Go module mode we run from the temp module dir
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	// exec.ExitError is handled in caller
-	return run(cmd)
+	return nil
 }
