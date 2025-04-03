@@ -129,7 +129,7 @@ $ goeval -i golang.org/x/exp/constraints 'p(1);p(2.0);};func p[T constraints.Sig
 
 ## License
 
-Copyright 2019-2023 Olivier Mengué
+Copyright 2019-2025 Olivier Mengué
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
