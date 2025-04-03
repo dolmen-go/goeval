@@ -24,7 +24,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec" // Go 1.19 behaviour enforced in go.mod. See https://blog.golang.org/path-security and https://pkg.go.dev/os/exec
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
