@@ -374,10 +374,10 @@ func _main() error {
 			fmt.Println("-- go.mod --")
 			defer gomod.Close()
 			io.Copy(os.Stdout, gomod)
+
 			gosum, err := os.Open(dir + "/go.sum")
 			switch {
-
-			case errors.Is(err, os.ErrNotExist):
+			case errors.Is(err, os.ErrNotExist): // ignore
 			case err != nil:
 				log.Fatal(err)
 			default:
@@ -394,17 +394,17 @@ func _main() error {
 		return err
 	}
 
-	if moduleMode {
-		/*
-			// Do we need to run "go get" again after "goimports"?
-			goget := exec.Command(goCmd, "get", ".")
-			goget.Env = env
-			goget.Dir = dir
-			goget.Stdout = os.Stdout
-			goget.Stderr = os.Stderr
-			run(goget)
-		*/
-	}
+	/*
+		if moduleMode {
+				// Do we need to run "go get" again after "goimports"?
+				goget := exec.Command(goCmd, "get", ".")
+				goget.Env = env
+				goget.Dir = dir
+				goget.Stdout = os.Stdout
+				goget.Stderr = os.Stderr
+				run(goget)
+		}
+	*/
 
 	var runArgs = make([]string, 0, 3+len(args))
 	runArgs = append(runArgs, "run", f.Name(), "--")
