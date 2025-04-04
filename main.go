@@ -175,6 +175,9 @@ func _main() error {
 	var play bool
 	flag.BoolVar(&play, "play", false, "run the code remotely on https://go.dev/play")
 
+	var share bool
+	flag.BoolVar(&share, "share", false, "share the code on https://go.dev/play and print the URL.")
+
 	showCmds := flag.Bool("x", false, "print commands executed.")
 
 	flag.Usage = func() {
@@ -222,8 +225,10 @@ func _main() error {
 		run = runX
 	}
 
-	noRunPlay = noRunPlay || play      // play implies noRunPlay: we don't need the hack to run locally
-	noRun = noRun || noRunPlay || play // noRunPlay and play imply noRun
+	// FIXME noRun/noRunPlay/play/share are exclusive. Report if 2 or more are used.
+
+	noRunPlay = noRunPlay || play || share      // play or share implies noRunPlay: we don't need the hack to run locally
+	noRun = noRun || noRunPlay || play || share // noRunPlay and play imply noRun
 
 	moduleMode := imports.modules != nil
 
@@ -346,7 +351,7 @@ func _main() error {
 		defer os.Remove(f.Name())
 		srcOut = f
 		srcFilename = f.Name()
-	} else if play {
+	} else if play || share {
 		srcOut = new(bytes.Buffer)
 	} else {
 		srcOut = os.Stdout
@@ -444,7 +449,7 @@ func _main() error {
 		}
 	}
 
-	if !play {
+	if !play && !share {
 		return nil
 	}
 
@@ -452,27 +457,45 @@ func _main() error {
 	// We need to send via HTTP. Let's call ourself instead of embedding the HTTP stack!
 
 	playgroundClient := new(bytes.Buffer)
-	// TODO: set a User-Agent
-	io.WriteString(playgroundClient, ""+
-		`resp, err := http.PostForm("https://go.dev/_/compile", url.Values{"version": {"2"}, "body":{`)
-	io.WriteString(playgroundClient, strconv.Quote(srcOut.(*bytes.Buffer).String()))
-	io.WriteString(playgroundClient, ""+
-		`}});`+
-		`if err != nil { log.Fatal(err) };`+
-		`defer resp.Body.Close();`+
-		// `resp.Body = io.NopCloser(io.TeeReader(resp.Body, os.Stdout));`+ // Enable for debugging
-		`var r struct{ Events []struct{ Delay time.Duration; Message string; Kind string;};};`+
-		`if err := json.NewDecoder(resp.Body).Decode(&r); err != nil { log.Fatal(err) };`+
-		// Replay events
-		`for _, ev := range r.Events {`+
-		`time.Sleep(ev.Delay);`+
-		`if ev.Kind=="stdout" { io.WriteString(os.Stdout, ev.Message) } else { io.WriteString(os.Stderr, ev.Message) };`+
-		`}`,
-	)
+
+	if share {
+		// TODO: set a User-Agent
+		io.WriteString(playgroundClient, ""+
+			`resp, err := http.Post("https://go.dev/_/share", "text/plain; charset=ut8", strings.NewReader(`)
+		io.WriteString(playgroundClient, strconv.Quote(srcOut.(*bytes.Buffer).String()))
+		io.WriteString(playgroundClient, ""+
+			`));`+
+			`if err != nil { log.Fatal("share:", err) };`+
+			`defer resp.Body.Close();`+
+			`id, err := io.ReadAll(resp.Body);`+
+			`if err != nil { log.Fatal("share:", err) };`+
+			`io.WriteString(os.Stdout, "https://go.dev/play/p/"+string(id)+"\n")`,
+		)
+		args = []string{"-i=io", "-i=log", "-i=net/http", "-i=os"}
+	} else { // play
+		// TODO: set a User-Agent
+		io.WriteString(playgroundClient, ""+
+			`resp, err := http.PostForm("https://go.dev/_/compile", url.Values{"version": {"2"}, "body":{`)
+		io.WriteString(playgroundClient, strconv.Quote(srcOut.(*bytes.Buffer).String()))
+		io.WriteString(playgroundClient, ""+
+			`}});`+
+			`if err != nil { log.Fatal(err) };`+
+			`defer resp.Body.Close();`+
+			// `resp.Body = io.NopCloser(io.TeeReader(resp.Body, os.Stdout));`+ // Enable for debugging
+			`var r struct{ Events []struct{ Delay time.Duration; Message string; Kind string;};};`+
+			`if err := json.NewDecoder(resp.Body).Decode(&r); err != nil { log.Fatal(err) };`+
+			// Replay events
+			`for _, ev := range r.Events {`+
+			`time.Sleep(ev.Delay);`+
+			`if ev.Kind=="stdout" { io.WriteString(os.Stdout, ev.Message) } else { io.WriteString(os.Stderr, ev.Message) };`+
+			`}`,
+		)
+		args = []string{"-i=encoding/json", "-i=io", "-i=log", "-i=net/http", "-i=net/url", "-i=os", "-i=time"}
+	}
 
 	// Run goeval with the code submitted on stdin
 	// For debugging the playgroundClient code above, just inject -E here
-	cmd := exec.Command(os.Args[0], "-i=encoding/json", "-i=io", "-i=log", "-i=net/http", "-i=net/url", "-i=os", "-i=time", "-")
+	cmd := exec.Command(os.Args[0], append(args, "-")...)
 	cmd.Env = nil // We must not use 'env' here
 	cmd.Dir = dir
 	cmd.Stdin = playgroundClient
