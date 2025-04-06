@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -352,7 +351,8 @@ func _main() error {
 
 	var (
 		srcFilename string
-		srcOut      io.Writer // The final result after goimports
+		srcFinal    io.Writer // The final result after goimports. Txtar format if in Go modules mode.
+		cmdFinal    *exec.Cmd
 	)
 	switch action {
 	case actionRun:
@@ -362,12 +362,30 @@ func _main() error {
 		}
 		defer f.Close()
 		defer os.Remove(f.Name())
-		srcOut = f
+		srcFinal = f
 		srcFilename = f.Name()
-	case actionPlay, actionShare:
-		srcOut = new(bytes.Buffer)
+
+		runArgs := make([]string, 0, 3+len(args))
+		runArgs = append(runArgs, "run", srcFilename, "--")
+		runArgs = append(runArgs, args...)
+		// log.Println(goCmd, runArgs)
+
+		cmdFinal = exec.Command(goCmd, runArgs...)
+		cmdFinal.Env = env
+		cmdFinal.Dir = dir // In Go module mode we run from the temp module dir
+		cmdFinal.Stdin = os.Stdin
+		cmdFinal.Stdout = os.Stdout
+		cmdFinal.Stderr = os.Stderr
+	case actionPlay:
+		var cleanup func()
+		srcFinal, cmdFinal, cleanup = prepareGoRun(playClient)
+		defer cleanup()
+	case actionShare:
+		var cleanup func()
+		srcFinal, cmdFinal, cleanup = prepareGoRun(shareClient)
+		defer cleanup()
 	default: // actionDump, actionDumpPlay
-		srcOut = os.Stdout
+		srcFinal = os.Stdout
 	}
 
 	var err error
@@ -387,16 +405,16 @@ func _main() error {
 			FormatOnly: false,
 		})
 		if err == nil {
-			_, err = srcOut.Write(out)
+			_, err = srcFinal.Write(out)
 		}
 	case "":
-		_, err = srcOut.Write(src.Bytes())
+		_, err = srcFinal.Write(src.Bytes())
 	default:
 		cmd := exec.Command(goimports)
 		cmd.Env = env
 		cmd.Dir = dir
 		cmd.Stdin = &src
-		cmd.Stdout = srcOut
+		cmd.Stdout = srcFinal
 		cmd.Stderr = os.Stderr
 		err = run(cmd)
 	}
@@ -416,39 +434,15 @@ func _main() error {
 		}
 	*/
 
-	if action == actionRun {
-		err = srcOut.(io.Closer).Close()
-		if err != nil {
-			return err
-		}
-
-		var runArgs = make([]string, 0, 3+len(args))
-		runArgs = append(runArgs, "run", srcFilename, "--")
-		runArgs = append(runArgs, args...)
-
-		// log.Println(goCmd, runArgs)
-
-		cmd := exec.Command(goCmd, runArgs...)
-		cmd.Env = env
-		cmd.Dir = dir // In Go module mode we run from the temp module dir
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		// exec.ExitError is handled in caller
-		return run(cmd)
-	}
-
-	// From this point we are handling -E, -Eplay, -play only
-
 	// dump go.mod, go.sum
-	if moduleMode {
+	if moduleMode && action != actionRun {
 		gomod, err := os.Open(dir + "/go.mod")
 		if err != nil {
 			log.Fatal(err)
 		}
-		io.WriteString(srcOut, "-- go.mod --\n")
+		io.WriteString(srcFinal, "-- go.mod --\n")
 		defer gomod.Close()
-		io.Copy(srcOut, gomod)
+		io.Copy(srcFinal, gomod)
 
 		gosum, err := os.Open(dir + "/go.sum")
 		switch {
@@ -456,63 +450,88 @@ func _main() error {
 		case err != nil:
 			log.Fatal(err)
 		default:
-			io.WriteString(srcOut, "-- go.sum --\n")
+			io.WriteString(srcFinal, "-- go.sum --\n")
 			defer gosum.Close()
-			io.Copy(srcOut, gosum)
+			io.Copy(srcFinal, gosum)
 		}
 	}
 
-	if action <= actionDumpPlay {
-		return nil
+	if action == actionRun {
+		// os.Stdout must not be closed
+		err = srcFinal.(io.Closer).Close()
+		if err != nil {
+			return err
+		}
 	}
 
-	// Let's run remotely on a Go Playground.
-	// We need to send via HTTP. Let's call ourself instead of embedding the HTTP stack!
+	if cmdFinal != nil { // run, -play, -share
+		return run(cmdFinal)
+	} // else: -E, -Eplay
 
-	playgroundClient := new(bytes.Buffer)
+	return nil
+}
 
-	if action == actionShare {
-		// TODO: set a User-Agent
-		io.WriteString(playgroundClient, ""+
-			`resp, err := http.Post("https://go.dev/_/share", "text/plain; charset=ut8", strings.NewReader(`)
-		io.WriteString(playgroundClient, strconv.Quote(srcOut.(*bytes.Buffer).String()))
-		io.WriteString(playgroundClient, ""+
-			`));`+
-			`if err != nil { log.Fatal("share:", err) };`+
-			`defer resp.Body.Close();`+
-			`id, err := io.ReadAll(resp.Body);`+
-			`if err != nil { log.Fatal("share:", err) };`+
-			`io.WriteString(os.Stdout, "https://go.dev/play/p/"+string(id)+"\n")`,
-		)
-		args = []string{"-i=io", "-i=log", "-i=net/http", "-i=os"}
-	} else { // actionPlay
-		// TODO: set a User-Agent
-		io.WriteString(playgroundClient, ""+
-			`resp, err := http.PostForm("https://go.dev/_/compile", url.Values{"version": {"2"}, "body":{`)
-		io.WriteString(playgroundClient, strconv.Quote(srcOut.(*bytes.Buffer).String()))
-		io.WriteString(playgroundClient, ""+
-			`}});`+
-			`if err != nil { log.Fatal(err) };`+
-			`defer resp.Body.Close();`+
-			// `resp.Body = io.NopCloser(io.TeeReader(resp.Body, os.Stdout));`+ // Enable for debugging
-			`var r struct{ Events []struct{ Delay time.Duration; Message string; Kind string;};};`+
-			`if err := json.NewDecoder(resp.Body).Decode(&r); err != nil { log.Fatal(err) };`+
-			// Replay events
-			`for _, ev := range r.Events {`+
-			`time.Sleep(ev.Delay);`+
-			`if ev.Kind=="stdout" { io.WriteString(os.Stdout, ev.Message) } else { io.WriteString(os.Stderr, ev.Message) };`+
-			`}`,
-		)
-		args = []string{"-i=encoding/json", "-i=io", "-i=log", "-i=net/http", "-i=net/url", "-i=os", "-i=time"}
+var playClient = `package main
+import ("encoding/json";"io";"log";"net/http";"net/url";"os";"time")
+func main() {
+	code, _ := io.ReadAll(os.Stdin)
+	// TODO User-Agent
+	resp, err := http.PostForm("https://go.dev/_/compile", url.Values{"version": {"2"}, "body":{string(code)}})
+	if err != nil { log.Fatal(err) }
+	defer resp.Body.Close()
+	// resp.Body = io.NopCloser(io.TeeReader(resp.Body, os.Stdout)); // Enable for debugging
+	var r struct{ Events []struct{ Delay time.Duration; Message string; Kind string;};}
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil { log.Fatal(err) }
+	// Replay events
+	for _, ev := range r.Events {
+		time.Sleep(ev.Delay)
+		if ev.Kind=="stdout" {
+			io.WriteString(os.Stdout, ev.Message)
+		} else {
+		 	io.WriteString(os.Stderr, ev.Message)
+		}
+	}
+}
+`
+var shareClient = `package main
+import ("io";"log";"net/http";"os")
+func main() {
+	// TODO User-Agent
+	resp, err := http.Post("https://go.dev/_/share", "text/plain; charset=ut8", os.Stdin)
+	if err != nil { log.Fatal("share:", err) }
+	defer resp.Body.Close()
+	id, err := io.ReadAll(resp.Body)
+	if err != nil { log.Fatal("share:", err) }
+	io.WriteString(os.Stdout, "https://go.dev/play/p/"+string(id)+"\n")
+}
+`
+
+// prepareGoRun prepares a "go run" execution.
+// The returned stdin buffer may be filled with data.
+// cleanup must be called after cmd.Run() to clean the tempoary go source created.
+func prepareGoRun(appCode string) (stdin *bytes.Buffer, cmd *exec.Cmd, cleanup func()) {
+	f, err := os.CreateTemp("", "*.go")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	fName := f.Name()
+	cleanup = func() {
+		os.Remove(fName)
 	}
 
-	// Run goeval with the code submitted on stdin
-	// For debugging the playgroundClient code above, just inject -E here
-	cmd := exec.Command(os.Args[0], append(args, "-")...)
-	cmd.Env = nil // We must not use 'env' here
-	cmd.Dir = dir
-	cmd.Stdin = playgroundClient
+	if _, err := io.WriteString(f, appCode); err != nil {
+		log.Fatal(err)
+	}
+
+	// Prepare input that will be filled before executing the command
+	stdin = new(bytes.Buffer)
+
+	// Run "go run" with the code submitted on stdin
+	cmd = exec.Command(goCmd, "run", fName)
+	cmd.Env = append(os.Environ(), "GO111MODULE=off") // We must not use the 'env' built for local run here
+	cmd.Stdin = stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return
 }
