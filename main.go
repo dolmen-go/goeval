@@ -153,6 +153,28 @@ func main() {
 	}
 }
 
+type actionBits uint
+
+const (
+	actionRun      actionBits = iota
+	actionDump                // -E
+	actionDumpPlay            // -Eplay
+	actionPlay                // -play
+	actionShare               // -share
+)
+
+var action actionBits
+
+func flagAction(name string, a actionBits, usage string) {
+	flag.BoolFunc(name, usage, func(string) error {
+		if action != actionRun {
+			return errors.New("flags -Eplay, -play and -share are exclusive")
+		}
+		action = a
+		return nil
+	})
+}
+
 func _main() error {
 	imports := imports{
 		packages:   map[string]string{"  ": "os"},
@@ -165,18 +187,14 @@ func _main() error {
 
 	flag.StringVar(&goCmd, "go", "go", "go command path.")
 
-	var noRun bool // -E, like "cc -E"
-	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it.")
-
-	var noRunPlay bool
-	flag.BoolVar(&noRunPlay, "Eplay", false, "just dump the assembled source for posting on https://go.dev/play")
-
+	// -E, like "cc -E"
+	flagAction("E", actionDump, "just dump the assembled source, without running it.")
+	flagAction("Eplay", actionDump, "just dump the assembled source for posting on https://go.dev/play")
 	// TODO allow to optionally set a different endpoint
-	var play bool
-	flag.BoolVar(&play, "play", false, "run the code remotely on https://go.dev/play")
+	flagAction("play", actionPlay, "run the code remotely on https://go.dev/play")
+	flagAction("share", actionShare, "share the code on https://go.dev/play and print the URL.")
 
-	var share bool
-	flag.BoolVar(&share, "share", false, "share the code on https://go.dev/play and print the URL.")
+	// TODO allow to optionally set a different endpoint for the Go Playground
 
 	showCmds := flag.Bool("x", false, "print commands executed.")
 
@@ -224,11 +242,6 @@ func _main() error {
 	if *showCmds {
 		run = runX
 	}
-
-	// FIXME noRun/noRunPlay/play/share are exclusive. Report if 2 or more are used.
-
-	noRunPlay = noRunPlay || play || share      // play or share implies noRunPlay: we don't need the hack to run locally
-	noRun = noRun || noRunPlay || play || share // noRunPlay and play imply noRun
 
 	moduleMode := imports.modules != nil
 
@@ -326,10 +339,9 @@ func _main() error {
 		}
 		fmt.Fprintf(&src, "import %s %q\n", alias, path)
 	}
-	if noRunPlay {
-		src.WriteString("func main() {\n")
-	} else {
-		src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
+	src.WriteString("func main() {\n")
+	if action <= actionDump {
+		src.WriteString("os.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
 		if moduleMode {
 			fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
 		}
@@ -342,7 +354,8 @@ func _main() error {
 		srcFilename string
 		srcOut      io.Writer // The final result after goimports
 	)
-	if !noRun {
+	switch action {
+	case actionRun:
 		f, err := os.CreateTemp(dir, "*.go")
 		if err != nil {
 			log.Fatal(err)
@@ -351,9 +364,9 @@ func _main() error {
 		defer os.Remove(f.Name())
 		srcOut = f
 		srcFilename = f.Name()
-	} else if play || share {
+	case actionPlay, actionShare:
 		srcOut = new(bytes.Buffer)
-	} else {
+	default: // actionDump, actionDumpPlay
 		srcOut = os.Stdout
 	}
 
@@ -403,7 +416,7 @@ func _main() error {
 		}
 	*/
 
-	if !noRun {
+	if action == actionRun {
 		err = srcOut.(io.Closer).Close()
 		if err != nil {
 			return err
@@ -449,7 +462,7 @@ func _main() error {
 		}
 	}
 
-	if !play && !share {
+	if action <= actionDumpPlay {
 		return nil
 	}
 
@@ -458,7 +471,7 @@ func _main() error {
 
 	playgroundClient := new(bytes.Buffer)
 
-	if share {
+	if action == actionShare {
 		// TODO: set a User-Agent
 		io.WriteString(playgroundClient, ""+
 			`resp, err := http.Post("https://go.dev/_/share", "text/plain; charset=ut8", strings.NewReader(`)
@@ -472,7 +485,7 @@ func _main() error {
 			`io.WriteString(os.Stdout, "https://go.dev/play/p/"+string(id)+"\n")`,
 		)
 		args = []string{"-i=io", "-i=log", "-i=net/http", "-i=os"}
-	} else { // play
+	} else { // actionPlay
 		// TODO: set a User-Agent
 		io.WriteString(playgroundClient, ""+
 			`resp, err := http.PostForm("https://go.dev/_/compile", url.Values{"version": {"2"}, "body":{`)
