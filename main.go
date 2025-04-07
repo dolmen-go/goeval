@@ -351,8 +351,8 @@ func _main() error {
 
 	var (
 		srcFilename string
-		srcFinal    io.Writer // The final result after goimports. Txtar format if in Go modules mode.
-		cmdFinal    *exec.Cmd
+		srcFinal    io.Writer // The final transformed source after goimports. Txtar format if in Go modules mode.
+		cmdFinal    *exec.Cmd // The final "go run" command
 	)
 	switch action {
 	case actionRun:
@@ -464,11 +464,11 @@ func _main() error {
 		}
 	}
 
-	if cmdFinal != nil { // run, -play, -share
-		return run(cmdFinal)
-	} // else: -E, -Eplay
+	if cmdFinal == nil { // -E, -Eplay
+		return nil
+	}
 
-	return nil
+	return run(cmdFinal)
 }
 
 var playClient = `package main
