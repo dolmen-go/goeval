@@ -457,9 +457,8 @@ func _main() error {
 	}
 
 	if action == actionRun {
-		// os.Stdout must not be closed
-		err = srcFinal.(io.Closer).Close()
-		if err != nil {
+		// Note: we must ensure that no code path leads to os.Stdout being closed
+		if err = srcFinal.(io.Closer).Close(); err != nil {
 			return err
 		}
 	}
