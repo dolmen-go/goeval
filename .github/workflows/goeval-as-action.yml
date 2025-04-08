@@ -27,12 +27,23 @@ jobs:
     - name: Install goeval in $GOBIN
       run: go install . # or github.com/dolmen-go/goeval@v1
 
-    - name: goeval called as a GitHub actionshell
-      shell: goeval '{0}'
-      run: fmt.Println("goeval called as a GitHub action")
+    - shell: echo {0}
+      run: ignore
+
+    - name: goeval called as a GitHub action shell
+      # {0} is the filename that point to the 'run' content.
+      # As goeval doesn't accept (yet!) direct filename input, we must
+      # use a shell that send the GitHub-generated file to goeval's stdin.
+      shell: goeval - < {0}
+      # run: fmt.Println("goeval called as a GitHub action")
+      run: fmt.Println(os.Args)
+
+    #- name: goeval2
+    #  shell: goeval fmt.Println("OK");fmt.Println("{0}")
+    #  run: ignore
 
     - name: Print buildinfo
-      shell: CGO_ENABLED=0 goeval '{0}'
+      shell: env CGO_ENABLED=0 goeval - <"{0}"
       run: |
         bi, _ := debug.ReadBuildInfo()
         fmt.Print(bi)
