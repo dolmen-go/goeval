@@ -1,0 +1,38 @@
+# See:
+# - https://yossarian.net/til/post/any-program-can-be-a-github-actions-shell/
+# - https://news.ycombinator.com/item?id=43617493
+
+name: goeval as GitHub action
+on: [push]
+jobs:
+
+  build:
+    name: goeval as GitHub action
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go:
+        - stable
+    steps:
+
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go }}
+      id: go
+
+    - name: Install goeval in $GOBIN
+      run: go install . # or github.com/dolmen-go/goeval@v1
+
+    - name: goeval called as a GitHub actionshell
+      shell: goeval '{0}'
+      run: fmt.Println("goeval called as a GitHub action")
+
+    - name: Print buildinfo
+      shell: CGO_ENABLED=0 goeval '{0}'
+      run: |
+        bi, _ := debug.ReadBuildInfo()
+        fmt.Print(bi)
