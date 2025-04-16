@@ -470,41 +470,6 @@ func _main() error {
 	return run(cmdFinal)
 }
 
-var playClient = `package main
-import ("encoding/json";"io";"log";"net/http";"net/url";"os";"time")
-func main() {
-	code, _ := io.ReadAll(os.Stdin)
-	// TODO User-Agent
-	resp, err := http.PostForm("https://go.dev/_/compile", url.Values{"version": {"2"}, "body":{string(code)}})
-	if err != nil { log.Fatal(err) }
-	defer resp.Body.Close()
-	// resp.Body = io.NopCloser(io.TeeReader(resp.Body, os.Stdout)); // Enable for debugging
-	var r struct{ Events []struct{ Delay time.Duration; Message string; Kind string;};}
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil { log.Fatal(err) }
-	// Replay events
-	for _, ev := range r.Events {
-		time.Sleep(ev.Delay)
-		if ev.Kind=="stdout" {
-			io.WriteString(os.Stdout, ev.Message)
-		} else {
-		 	io.WriteString(os.Stderr, ev.Message)
-		}
-	}
-}
-`
-var shareClient = `package main
-import ("io";"log";"net/http";"os")
-func main() {
-	// TODO User-Agent
-	resp, err := http.Post("https://go.dev/_/share", "text/plain; charset=ut8", os.Stdin)
-	if err != nil { log.Fatal("share:", err) }
-	defer resp.Body.Close()
-	id, err := io.ReadAll(resp.Body)
-	if err != nil { log.Fatal("share:", err) }
-	io.WriteString(os.Stdout, "https://go.dev/play/p/"+string(id)+"\n")
-}
-`
-
 // prepareGoRun prepares a "go run" execution.
 // The returned stdin buffer may be filled with data.
 // cleanup must be called after cmd.Run() to clean the tempoary go source created.
