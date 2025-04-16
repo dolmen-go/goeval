@@ -378,11 +378,11 @@ func _main() error {
 		cmdFinal.Stderr = os.Stderr
 	case actionPlay:
 		var cleanup func()
-		srcFinal, cmdFinal, cleanup = prepareGoRun(playClient)
+		srcFinal, cmdFinal, cleanup = prepareSub(playClient)
 		defer cleanup()
 	case actionShare:
 		var cleanup func()
-		srcFinal, cmdFinal, cleanup = prepareGoRun(shareClient)
+		srcFinal, cmdFinal, cleanup = prepareSub(shareClient)
 		defer cleanup()
 	default: // actionDump, actionDumpPlay
 		srcFinal = os.Stdout
@@ -468,34 +468,4 @@ func _main() error {
 	}
 
 	return run(cmdFinal)
-}
-
-// prepareGoRun prepares a "go run" execution.
-// The returned stdin buffer may be filled with data.
-// cleanup must be called after cmd.Run() to clean the tempoary go source created.
-func prepareGoRun(appCode string) (stdin *bytes.Buffer, cmd *exec.Cmd, cleanup func()) {
-	f, err := os.CreateTemp("", "*.go")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-	fName := f.Name()
-	cleanup = func() {
-		os.Remove(fName)
-	}
-
-	if _, err := io.WriteString(f, appCode); err != nil {
-		log.Fatal(err)
-	}
-
-	// Prepare input that will be filled before executing the command
-	stdin = new(bytes.Buffer)
-
-	// Run "go run" with the code submitted on stdin
-	cmd = exec.Command(goCmd, "run", fName)
-	cmd.Env = append(os.Environ(), "GO111MODULE=off") // We must not use the 'env' built for local run here
-	cmd.Stdin = stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return
 }
