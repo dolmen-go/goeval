@@ -152,7 +152,7 @@ paths:
       description: >
         Curl example:
         ```console
-        $ curl --data-binary '@-' -H 'Content-Type: text/plain; charset=ut8' 'https://play.golang.org/_/share' <<EOF
+        $ curl --data-binary '@-' -H 'Content-Type: text/plain; charset=utf-8' 'https://play.golang.org/_/share' <<EOF
         package main
         func main() {
         }
