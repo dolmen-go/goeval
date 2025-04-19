@@ -9,7 +9,7 @@ import (
 
 func main() {
 	// TODO User-Agent
-	resp, err := http.Post("https://go.dev/_/share", "text/plain; charset=utf-8", os.Stdin)
+	resp, err := http.Post("https://play.golang.org/share", "text/plain; charset=utf-8", os.Stdin)
 	if err != nil {
 		log.Fatal("share:", err)
 	}

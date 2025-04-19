@@ -13,7 +13,7 @@ import (
 func main() {
 	code, _ := io.ReadAll(os.Stdin)
 	// TODO User-Agent
-	resp, err := http.PostForm("https://go.dev/_/compile", url.Values{"version": {"2"}, "body": {string(code)}})
+	resp, err := http.PostForm("https://play.golang.org/compile", url.Values{"body": {string(code)}})
 	if err != nil {
 		log.Fatal(err)
 	}
