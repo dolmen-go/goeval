@@ -1,0 +1,6 @@
+# OpenAPI rules
+# Reference: https://meta.stoplight.io/docs/spectral/ZG9jOjExNw-open-api-rules
+extends: "spectral:oas"
+rules:
+  contact-properties: off
+  operation-tags: off

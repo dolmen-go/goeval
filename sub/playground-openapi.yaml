@@ -1,0 +1,306 @@
+---
+openapi: '3.1.1'
+info:
+  title: Reverse engineered API of the Go Playground
+  description: >
+    Server source code: https://go.googlesource.com/playground
+    https://pkg.go.dev/golang.org/x/playground
+
+    Author of this OpenAPI specification: [Olivier Mengué](https://github.com/dolmen-go).
+  contact:
+    url: https://github.com/dolmen-go/goeval/issues
+  version: '0.20250419.0'
+  # The license applies only to this document, not to the Go Playground.
+  license:
+    name: Apache License 2.0
+    identifier: Apache-2.0
+    # identifier and url are exclusive
+    # url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  # The main api is at play.golang.org
+  # go.dev/_ exposes only some endpoints with a different API (for example /compile has a different schema)
+  - url: https://play.golang.org
+    description: play.golang.org is also the backend of https://go.dev/_ which exposes a subset of this API and some variations in output.
+paths:
+  # See https://go.googlesource.com/playground/+/refs/heads/master/server.go#51
+  /version:
+    get: # also: post
+      operationId: version
+      summary: Show server's Go version.
+      description: >
+        Server source code: https://go.googlesource.com/playground/+/refs/heads/master/fmt.go#23
+      security: [{}]
+      responses:
+        '200':
+          description: OK
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+          content:
+            "application/json":
+              schema:
+                type: object
+                properties:
+                  Version:
+                    type: string
+                  Release:
+                    type: string
+                  Name:
+                    type: string
+                example: {"Version":"go1.24.2","Release":"go1.24","Name":"Go 1.24"}
+  /compile:
+    post:
+      operationId: play
+      summary: Compile and run the provided Go code.
+      description: >
+        Curl example:
+        ```console
+        $ curl -s --data-urlencode body@- https://play.golang.org/compile <<EOF
+        package main
+        import "fmt"
+        func main() {
+          fmt.Println("Hello, world!")
+        }
+        EOF
+        {"Errors":"","Events":[{"Message":"Hello, world!\n","Kind":"stdout","Delay":0}],"Status":0,"IsTest":false,"TestsFailed":0}
+        ```
+
+        Multiple files are submitted using the [txtar format](https://pkg.go.dev/golang.org/x/tools/txtar#hdr-Txtar_format).
+
+        Server source code: https://go.googlesource.com/playground/+/refs/heads/master/sandbox.go#88
+      security: [{}]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                #version:
+                #  type: integer
+                #  enum: [2]
+                body:
+                  type: string
+                withVet:
+                  type: boolean
+          application/json:
+            schema:
+              type: object
+              properties:
+                Body:
+                  type: string
+                WithVet:
+                  type: boolean
+      responses:
+        '200':
+          description: OK.
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+          content:
+            "application/json":
+              schema:
+                # https://go.googlesource.com/playground/+/refs/heads/master/sandbox.go#72
+                type: object
+                properties:
+                  Errors:
+                    type: string
+                  Status:
+                    type: integer
+                  IsTest:
+                    type: boolean
+                  TestsFailed:
+                    type: integer
+                  VetErrors:
+                    description: Set if `withVet`.
+                    type: string
+                  VetOK:
+                    description: Set if `withVet`.
+                    type: boolean
+                  Events:
+                    type: array
+                    items:
+                      type: object
+                      description: >
+                        See https://go.googlesource.com/playground/+/refs/heads/master/play.go#62
+                      properties:
+                        Delay:
+                          type: string
+                          description: Go's [time.Duration](https://pkg.go.dev/time#ParseDuration).
+                        Kind:
+                          type: string
+                          enum:
+                            - stdout
+                            - stderr
+                        Message:
+                          type: string
+        '500':
+          description: Internal server error.
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+  /share:
+    # https://go.googlesource.com/playground/+/refs/heads/master/share.go
+    post:
+      operationId: share
+      summary: Save and share the code.
+      description: >
+        Curl example:
+        ```console
+        $ curl --data-binary '@-' -H 'Content-Type: text/plain; charset=ut8' 'https://play.golang.org/_/share' <<EOF
+        package main
+        func main() {
+        }
+        EOF
+        ```
+      security: [{}]
+      requestBody:
+        content:
+          "text/plain; charset=utf-8":
+            schema:
+              type: string
+              # https://go.googlesource.com/playground/+/refs/heads/master/share.go#21
+              maxLength: 65536
+      responses:
+        '200':
+          description: OK
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+          content:
+            "text/plain":
+              schema:
+                description: Go Playground id. Prefix with https://go.dev/play/p/ to open with a browser.
+                type: string
+        '413':
+          description: Snippet is too large.
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+          content:
+            text/plain:
+              schema:
+                type: string
+                enum:
+                  - Snippet is too large
+        '500':
+          description: Error storing the snippet
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+  /fmt:
+    post: # also: get
+      operationId: fmt
+      summary: Apply gofmt to the provided Go source code.
+      description: >
+        Curl examples:
+        ```console
+        $ curl -s --data-urlencode body@- https://play.golang.org/fmt <<EOF
+        package main
+        import "fmt"
+        func main() {
+          fmt.Println("Hello, world!")
+        }
+        EOF
+        {"Body":"package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello, world!\")\n}\n","Error":""}
+        $ curl -s --data-urlencode body@- -d imports=true https://play.golang.org/fmt <<EOF
+        package main
+        func main() {
+          fmt.Println("Hello, world!")
+        }
+        EOF
+        {"Body":"package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello, world!\")\n}\n","Error":""}
+        ```
+
+        Server source code: https://go.googlesource.com/playground/+/refs/heads/master/fmt.go#23
+      security: [{}]
+      requestBody:
+        content:
+          "application/x-www-form-urlencoded":
+            schema:
+              type: object
+              properties:
+                body:
+                  type: string
+                imports:
+                  # https://pkg.go.dev/strconv#ParseBool 
+                  # 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False
+                  type: boolean
+              required: ["body"]
+          "application/json":
+            schema:
+              type: object
+              properties:
+                Body:
+                  type: string
+      responses:
+        '200':
+          description: OK.
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+          content:
+            'application/json':
+              schema:
+                type: object
+                properties:
+                  Body:
+                    type: string
+                  Error:
+                    type: string
+  /p/{id}.go:
+    get:
+      operationId: edit
+      summary: Retrieve the snippet from the store.
+      description: >
+        Server source code: https://go.googlesource.com/playground/+/refs/heads/master/edit.go
+      parameters:
+        - name: id
+          description: Snippet identifier, as returned by `/share`.
+          in: path
+          schema:
+            type: string
+          required: true
+        - name: download
+          description: If `true`, set the Content-Disposition header.
+          in: query # https://pkg.go.dev/net/http#Request.FormValue
+          schema:
+            type: boolean
+      security: [{}]
+      responses:
+        '200':
+          description: Snippet content.
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+          content:
+            'text/plain; charset=utf-8':
+              schema:
+                type: string
+        '404':
+          description: Snippet not found.
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ["*"]
+          content:
+            'text/plain':
+              schema:
+                type: string
+                enum: ["Snippet not found"]
