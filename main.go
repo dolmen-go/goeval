@@ -188,7 +188,7 @@ func _main() error {
 
 	// -E, like "cc -E"
 	flagAction("E", actionDump, "just dump the assembled source, without running it.")
-	flagAction("Eplay", actionDump, "just dump the assembled source for posting on https://go.dev/play")
+	flagAction("Eplay", actionDumpPlay, "just dump the assembled source for posting on https://go.dev/play")
 	// TODO allow to optionally set a different endpoint
 	flagAction("play", actionPlay, "run the code remotely on https://go.dev/play")
 	flagAction("share", actionShare, "share the code on https://go.dev/play and print the URL.")
