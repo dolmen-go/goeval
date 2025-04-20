@@ -57,7 +57,7 @@ paths:
       description: >
         Curl example:
         ```console
-        $ curl -s --data-urlencode body@- https://play.golang.org/compile <<EOF
+        $ curl -s -X POST --data-urlencode body@- https://play.golang.org/compile <<EOF
         package main
         import "fmt"
         func main() {
