@@ -325,6 +325,21 @@ func _main() error {
 	}
 
 	var src bytes.Buffer
+
+	// If sending to the Go Playground, export GOEXPERIMENT as a comment
+	if action >= actionDumpPlay {
+		const alphaNum = "abcdefghijklmnopqrstuvwxyz0123456789"
+		const alphaNumComma = alphaNum + ","
+		if exp, ok := os.LookupEnv("GOEXPERIMENT"); ok &&
+			exp != "" && // Not empty
+			strings.Trim(exp, ",") == exp && // No leading or trailing commas
+			strings.Trim(exp, alphaNumComma) == "" { // only lower case alpha num and comma
+			src.WriteString("// GOEXPERIMENT=")
+			src.WriteString(exp)
+			src.WriteString("\n\n")
+		}
+	}
+
 	src.WriteString("package main\n")
 	for alias, path := range imports.packages {
 		if len(alias) > 2 && alias[1] == ' ' {
