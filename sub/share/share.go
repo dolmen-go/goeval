@@ -7,8 +7,19 @@ import (
 	"os"
 )
 
+type uaTransport struct {
+	*http.Transport
+	UserAgent string
+}
+
+func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", t.UserAgent)
+	return t.Transport.RoundTrip(req)
+}
+
 func main() {
-	// TODO User-Agent
+	http.DefaultTransport = &uaTransport{Transport: http.DefaultTransport.(*http.Transport), UserAgent: os.Args[1]}
+
 	resp, err := http.Post("https://play.golang.org/share", "text/plain; charset=utf-8", os.Stdin)
 	if err != nil {
 		log.Fatal("share:", err)

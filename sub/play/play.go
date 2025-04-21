@@ -10,9 +10,20 @@ import (
 	"time"
 )
 
+type uaTransport struct {
+	*http.Transport
+	UserAgent string
+}
+
+func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", t.UserAgent)
+	return t.Transport.RoundTrip(req)
+}
+
 func main() {
+	http.DefaultTransport = &uaTransport{Transport: http.DefaultTransport.(*http.Transport), UserAgent: os.Args[1]}
+
 	code, _ := io.ReadAll(os.Stdin)
-	// TODO User-Agent
 	resp, err := http.PostForm("https://play.golang.org/compile", url.Values{"body": {string(code)}})
 	if err != nil {
 		log.Fatal(err)

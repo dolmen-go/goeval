@@ -37,8 +37,8 @@ func prepareSub(appCode string) (stdin *bytes.Buffer, cmd *exec.Cmd, cleanup fun
 	// Prepare input that will be filled before executing the command
 	stdin = new(bytes.Buffer)
 
-	// Run "go run" with the code submitted on stdin
-	cmd = exec.Command(goCmd, "run", fName)
+	// Run "go run" with the code submitted on stdin and the userAgent as first argument
+	cmd = exec.Command(goCmd, "run", fName, getUserAgent())
 	cmd.Env = append(os.Environ(), "GO111MODULE=off") // We must not use the 'env' built for local run here
 	cmd.Stdin = stdin
 	cmd.Stdout = os.Stdout
