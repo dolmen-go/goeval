@@ -1,3 +1,10 @@
+# Tools for playground-openapi.yaml maintenance.
+#
+# Required tools:
+# - docker
+# - mise (see ../.config/mise.toml)   https://mise.jdx.dev/
+#
+# All other tools are installed via mise.
 
 .PHONY: openapi-validate
 
