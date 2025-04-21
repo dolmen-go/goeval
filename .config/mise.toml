@@ -1,0 +1,5 @@
+[tools]
+"aqua:golangci/golangci-lint" = "2.1.2"
+"aqua:stoplightio/spectral" = "6.14.3"
+node = "23.11.0"
+"npm:openapicmd" = "2.6.1"
