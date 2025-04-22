@@ -35,7 +35,7 @@ var (
 // prepareSub prepares execution of a sub command via a "go run".
 // The returned stdin buffer may be filled with data.
 // cleanup must be called after cmd.Run() to clean the tempoary go source created.
-func prepareSub(appCode string) (stdin *bytes.Buffer, cmd *exec.Cmd, cleanup func()) {
+func prepareSub(appCode string) (stdin *bytes.Buffer, tail func() error, cleanup func()) {
 	f, err := os.CreateTemp("", "*.go")
 	if err != nil {
 		log.Fatal(err)
@@ -54,10 +54,14 @@ func prepareSub(appCode string) (stdin *bytes.Buffer, cmd *exec.Cmd, cleanup fun
 	stdin = new(bytes.Buffer)
 
 	// Run "go run" with the code submitted on stdin and the userAgent as first argument
-	cmd = exec.Command(goCmd, "run", fName, getUserAgent())
+	cmd := exec.Command(goCmd, "run", fName, getUserAgent())
 	cmd.Env = append(os.Environ(), "GO111MODULE=off") // We must not use the 'env' built for local run here
 	cmd.Stdin = stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	tail = func() error {
+		return run(cmd)
+	}
 	return
 }

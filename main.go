@@ -367,7 +367,7 @@ func _main() error {
 	var (
 		srcFilename string
 		srcFinal    io.Writer // The final transformed source after goimports. Txtar format if in Go modules mode.
-		cmdFinal    *exec.Cmd // The final "go run" command
+		tail        func() error
 	)
 	switch action {
 	case actionRun:
@@ -385,22 +385,29 @@ func _main() error {
 		runArgs = append(runArgs, args...)
 		// log.Println(goCmd, runArgs)
 
-		cmdFinal = exec.Command(goCmd, runArgs...)
-		cmdFinal.Env = env
-		cmdFinal.Dir = dir // In Go module mode we run from the temp module dir
-		cmdFinal.Stdin = os.Stdin
-		cmdFinal.Stdout = os.Stdout
-		cmdFinal.Stderr = os.Stderr
+		cmd := exec.Command(goCmd, runArgs...)
+		cmd.Env = env
+		cmd.Dir = dir // In Go module mode we run from the temp module dir
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		tail = func() error {
+			if err = f.Close(); err != nil {
+				return err
+			}
+			return run(cmd)
+		}
 	case actionPlay:
 		var cleanup func()
-		srcFinal, cmdFinal, cleanup = prepareSub(playClient)
+		srcFinal, tail, cleanup = prepareSub(playClient)
 		defer cleanup()
 	case actionShare:
 		var cleanup func()
-		srcFinal, cmdFinal, cleanup = prepareSub(shareClient)
+		srcFinal, tail, cleanup = prepareSub(shareClient)
 		defer cleanup()
 	default: // actionDump, actionDumpPlay
 		srcFinal = os.Stdout
+		tail = func() error { return nil }
 	}
 
 	var err error
@@ -471,16 +478,5 @@ func _main() error {
 		}
 	}
 
-	if action == actionRun {
-		// Note: we must ensure that no code path leads to os.Stdout being closed
-		if err = srcFinal.(io.Closer).Close(); err != nil {
-			return err
-		}
-	}
-
-	if cmdFinal == nil { // -E, -Eplay
-		return nil
-	}
-
-	return run(cmdFinal)
+	return tail()
 }
