@@ -29,3 +29,6 @@ jobs:
 
     - name: Check version
       run: ./goeval 'fmt.Println(runtime.Version())'
+
+    - name: Run tests
+      run: go test -v ./...
