@@ -55,7 +55,11 @@ func prepareSub(appCode string) (stdin *bytes.Buffer, tail func() error, cleanup
 
 	// Run "go run" with the code submitted on stdin and the userAgent as first argument
 	cmd := exec.Command(goCmd, "run", fName, getUserAgent())
-	cmd.Env = append(os.Environ(), "GO111MODULE=off") // We must not use the 'env' built for local run here
+	cmd.Env = append(
+		os.Environ(),      // We must not use the 'env' built for local run here
+		"GO111MODULE=off", // Sub command use only stdlib
+		"GOEXPERIMENT=",   // Clear GOEXPERIMENT which has been forwarded in a comment
+	)
 	cmd.Stdin = stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
