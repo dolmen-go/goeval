@@ -152,6 +152,28 @@ func main() {
 	}
 }
 
+type actionBits uint
+
+const (
+	actionRun      actionBits = iota
+	actionDump                // -E
+	actionDumpPlay            // -Eplay
+	actionPlay                // -play
+	actionShare               // -share
+)
+
+var action actionBits
+
+func flagAction(name string, a actionBits, usage string) {
+	flag.BoolFunc(name, usage, func(string) error {
+		if action != actionRun {
+			return errors.New("flags -Eplay, -play and -share are exclusive")
+		}
+		action = a
+		return nil
+	})
+}
+
 func _main() error {
 	imports := imports{
 		packages:   map[string]string{"  ": "os"},
@@ -164,8 +186,14 @@ func _main() error {
 
 	flag.StringVar(&goCmd, "go", "go", "go command path.")
 
-	var noRun bool // -E, like "cc -E"
-	flag.BoolVar(&noRun, "E", false, "just dump the assembled source, without running it.")
+	// -E, like "cc -E"
+	flagAction("E", actionDump, "just dump the assembled source, without running it.")
+	flagAction("Eplay", actionDumpPlay, "just dump the assembled source for posting on https://go.dev/play")
+	// TODO allow to optionally set a different endpoint
+	flagAction("play", actionPlay, "run the code remotely on https://go.dev/play")
+	flagAction("share", actionShare, "share the code on https://go.dev/play and print the URL.")
+
+	// TODO allow to optionally set a different endpoint for the Go Playground
 
 	showCmds := flag.Bool("x", false, "print commands executed.")
 
@@ -297,6 +325,21 @@ func _main() error {
 	}
 
 	var src bytes.Buffer
+
+	// If sending to the Go Playground, export GOEXPERIMENT as a comment
+	if action >= actionDumpPlay {
+		const alphaNum = "abcdefghijklmnopqrstuvwxyz0123456789"
+		const alphaNumComma = alphaNum + ","
+		if exp, ok := os.LookupEnv("GOEXPERIMENT"); ok &&
+			exp != "" && // Not empty
+			strings.Trim(exp, ",") == exp && // No leading or trailing commas
+			strings.Trim(exp, alphaNumComma) == "" { // only lower case alpha num and comma
+			src.WriteString("// GOEXPERIMENT=")
+			src.WriteString(exp)
+			src.WriteString("\n\n")
+		}
+	}
+
 	src.WriteString("package main\n")
 	for alias, path := range imports.packages {
 		if len(alias) > 2 && alias[1] == ' ' {
@@ -310,33 +353,70 @@ func _main() error {
 		}
 		fmt.Fprintf(&src, "import %s %q\n", alias, path)
 	}
-	src.WriteString("func main() {\nos.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
-	if moduleMode {
-		fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
+	src.WriteString("func main() {\n")
+	if action <= actionDump {
+		src.WriteString("os.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
+		if moduleMode {
+			fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
+		}
+		src.WriteString("//line :1\n")
 	}
-	src.WriteString("//line :1\n")
 	src.WriteString(code)
 	src.WriteString("\n}\n")
 
-	var f *os.File
-	var err error
-	if !noRun {
-		f, err = os.CreateTemp(dir, "*.go")
+	var (
+		srcFilename string
+		srcFinal    io.Writer // The final transformed source after goimports. Txtar format if in Go modules mode.
+		tail        func() error
+	)
+	switch action {
+	case actionRun:
+		f, err := os.CreateTemp(dir, "*.go")
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer f.Close()
 		defer os.Remove(f.Name())
-	} else {
-		f = os.Stdout
+		srcFinal = f
+		srcFilename = f.Name()
+
+		runArgs := make([]string, 0, 3+len(args))
+		runArgs = append(runArgs, "run", srcFilename, "--")
+		runArgs = append(runArgs, args...)
+		// log.Println(goCmd, runArgs)
+
+		cmd := exec.Command(goCmd, runArgs...)
+		cmd.Env = env
+		cmd.Dir = dir // In Go module mode we run from the temp module dir
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		tail = func() error {
+			if err = f.Close(); err != nil {
+				return err
+			}
+			return run(cmd)
+		}
+	case actionPlay:
+		var cleanup func()
+		srcFinal, tail, cleanup = prepareSub(playClient)
+		defer cleanup()
+	case actionShare:
+		var cleanup func()
+		srcFinal, tail, cleanup = prepareSub(shareClient)
+		defer cleanup()
+	default: // actionDump, actionDumpPlay
+		srcFinal = os.Stdout
+		tail = func() error { return nil }
 	}
 
+	var err error
 	switch goimports {
 	case "goimports":
 		var out []byte
 		var filename string // filename is used to locate the relevant go.mod
 		if imports.packages != nil {
-			filename = f.Name()
+			filename = srcFilename
 		}
 		out, err = goimp.Process(filename, src.Bytes(), &goimp.Options{
 			Fragment:   false,
@@ -347,16 +427,16 @@ func _main() error {
 			FormatOnly: false,
 		})
 		if err == nil {
-			_, err = f.Write(out)
+			_, err = srcFinal.Write(out)
 		}
 	case "":
-		_, err = f.Write(src.Bytes())
+		_, err = srcFinal.Write(src.Bytes())
 	default:
 		cmd := exec.Command(goimports)
 		cmd.Env = env
 		cmd.Dir = dir
 		cmd.Stdin = &src
-		cmd.Stdout = f
+		cmd.Stdout = srcFinal
 		cmd.Stderr = os.Stderr
 		err = run(cmd)
 	}
@@ -364,60 +444,39 @@ func _main() error {
 		return err
 	}
 
-	if noRun {
-		// dump go.mod, go.sum
-		if moduleMode {
-			gomod, err := os.Open(dir + "/go.mod")
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println("-- go.mod --")
-			defer gomod.Close()
-			io.Copy(os.Stdout, gomod)
-
-			gosum, err := os.Open(dir + "/go.sum")
-			switch {
-			case errors.Is(err, os.ErrNotExist): // ignore
-			case err != nil:
-				log.Fatal(err)
-			default:
-				fmt.Println("-- go.sum --")
-				defer gosum.Close()
-				io.Copy(os.Stdout, gosum)
-			}
-		}
-
-		return nil
-	}
-	err = f.Close()
-	if err != nil {
-		return err
-	}
-
 	/*
+		// Do we need to run "go get" again after "goimports"?
 		if moduleMode {
-				// Do we need to run "go get" again after "goimports"?
-				goget := exec.Command(goCmd, "get", ".")
-				goget.Env = env
-				goget.Dir = dir
-				goget.Stdout = os.Stdout
-				goget.Stderr = os.Stderr
-				run(goget)
+			goget := exec.Command(goCmd, "get", ".")
+			goget.Env = env
+			goget.Dir = dir
+			goget.Stdout = os.Stdout
+			goget.Stderr = os.Stderr
+			run(goget)
 		}
 	*/
 
-	var runArgs = make([]string, 0, 3+len(args))
-	runArgs = append(runArgs, "run", f.Name(), "--")
-	runArgs = append(runArgs, args...)
+	// dump go.mod, go.sum
+	if moduleMode && action != actionRun {
+		gomod, err := os.Open(dir + "/go.mod")
+		if err != nil {
+			log.Fatal(err)
+		}
+		io.WriteString(srcFinal, "-- go.mod --\n")
+		defer gomod.Close()
+		io.Copy(srcFinal, gomod)
 
-	// log.Println(goCmd, runArgs)
+		gosum, err := os.Open(dir + "/go.sum")
+		switch {
+		case errors.Is(err, os.ErrNotExist): // ignore
+		case err != nil:
+			log.Fatal(err)
+		default:
+			io.WriteString(srcFinal, "-- go.sum --\n")
+			defer gosum.Close()
+			io.Copy(srcFinal, gosum)
+		}
+	}
 
-	cmd := exec.Command(goCmd, runArgs...)
-	cmd.Env = env
-	cmd.Dir = dir // In Go module mode we run from the temp module dir
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	// exec.ExitError is handled in caller
-	return run(cmd)
+	return tail()
 }
