@@ -1,7 +1,7 @@
 
 # goeval - Evaluate Go snippets instantly from the command line
 
-## Demo
+## 🚀 Demo
 
 ```console
 $ goeval 'fmt.Println("Hello, world!")'
@@ -48,19 +48,19 @@ $ goeval -i cpuid=github.com/klauspost/cpuid/v2@v2.2.3 'fmt.Println(cpuid.CPU.X6
 3
 ```
 
-## Install
+## ⬇️ Install
 
 ```console
 $ go install github.com/dolmen-go/goeval@latest
 ```
 
-## Uninstall
+## 🗑️ Uninstall
 
 ```console
 $ go clean -i github.com/dolmen-go/goeval
 ```
 
-## How does it work?
+## ❓ How does it work?
 
 ### GOPATH mode
 
@@ -77,15 +77,15 @@ Hello, world!
 
 When at least one `module@version` is imported with `-i`, Go module mode is enabled. Two files are generated: `tmpxxxx.go` and `go.mod`. Then `go get .` is run to resolve and fetch dependencies, and then `go run`.
 
-## Debugging
+## 🛠️ Debugging
 
 To debug a syntax error:
 
 ```console
 $ goeval -E -goimports= ... | goimports
-````
+```
 
-## Unsupported tricks
+## 🧙 Unsupported tricks
 
 Here are some tricks that have worked in the past, that may still work in the last version, but are not guaranteed to work later.
 
@@ -121,13 +121,13 @@ $ goeval -i golang.org/x/exp/constraints 'p(1);p(2.0);};func p[T constraints.Sig
 3
 ```
 
-## Alternatives
+## 🔄 Alternatives
 
 * [gommand](https://github.com/sno6/gommand) Go one liner program. Similar to `python -c`.
 * [gorram](https://github.com/natefinch/gorram) Like `go run` for any Go function.
 * [goexec](https://github.com/shurcooL/goexec) A command line tool to execute Go functions.
 
-## License
+## 🛡️ License
 
 Copyright 2019-2025 Olivier Mengué
 
