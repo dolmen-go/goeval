@@ -32,3 +32,13 @@ jobs:
 
     - name: Run tests
       run: go test -v ./...
+
+    - name: Test -play
+      run: |
+        out="$(./goeval -play 'fmt.Println(time.Now())')"
+        expected='2009-11-10 23:00:00 +0000 UTC m=+0.000000001'
+        if [ "$out" != "$expected" ]; then
+          echo "got:      $out"
+          echo "expected: $expected"
+          exit 1
+        fi
