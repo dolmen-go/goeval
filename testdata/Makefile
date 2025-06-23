@@ -4,7 +4,7 @@
 
 all: go-logo-blue.png
 
-go-logo-blue.png: go-logo-blue.svg
+%.png: %.svg
 	magick -background none $< -colors 2 $@
 
 go-logo-blue.svg:
