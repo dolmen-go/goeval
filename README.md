@@ -56,6 +56,36 @@ $ goeval -i net/http -i _=github.com/mattn/go-sqlite3@latest -i github.com/dolme
 ```
 -->
 
+### [go.dev/play](https://go.dev/play)
+
+Run your code on the Go Playground, and show output on the terminal:
+
+```console
+$ goeval -play 'fmt.Println(time.Now())'
+2009-11-10 23:00:00 +0000 UTC m=+0.000000001
+```
+
+Show the code sent to the Go Playground:
+
+```console
+$ goeval -Eplay 'fmt.Println(time.Now())'
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	fmt.Println(time.Now())
+}
+```
+
+Share the code on `go.dev`:
+```console
+$ goeval -share 'fmt.Println(time.Now())'
+https://go.dev/play/p/Z35Vf8gIg4Z
+```
 
 ## ⬇️ Install
 
