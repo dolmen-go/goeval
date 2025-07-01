@@ -81,10 +81,16 @@ func main() {
 }
 ```
 
-Share the code on `go.dev`:
+Share the code on `go.dev/play`:
 ```console
 $ goeval -share 'fmt.Println(time.Now())'
 https://go.dev/play/p/Z35Vf8gIg4Z
+```
+
+Run on [`go.dev/play`](https://go.dev/play) with GOEXPERIMENT (the Go Playground enables GOEXPERIMENT via special comment):
+```console
+$ GOEXPERIMENT=rangefunc goeval -play 'fmt.Println(runtime.Version())'
+go1.24.4 X:rangefunc
 ```
 
 ## ⬇️ Install
