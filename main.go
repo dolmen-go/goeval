@@ -135,6 +135,21 @@ func runTime(cmd *exec.Cmd) error {
 	return cmd.Run()
 }
 
+func gorun(srcFilename string, env []string, dir string, args ...string) error {
+	runArgs := make([]string, 0, 3+len(args))
+	runArgs = append(runArgs, "run", srcFilename, "--")
+	runArgs = append(runArgs, args...)
+	// log.Println(goCmd, runArgs)
+
+	cmd := exec.Command(goCmd, runArgs...)
+	cmd.Env = env
+	cmd.Dir = dir // In Go module mode we run from the temp module dir
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return run(cmd)
+}
+
 var goCmd = "go"
 
 func getGOMODCACHE(env []string) (string, error) {
@@ -391,22 +406,11 @@ func _main() error {
 		srcFinal = f
 		srcFilename = f.Name()
 
-		runArgs := make([]string, 0, 3+len(args))
-		runArgs = append(runArgs, "run", srcFilename, "--")
-		runArgs = append(runArgs, args...)
-		// log.Println(goCmd, runArgs)
-
-		cmd := exec.Command(goCmd, runArgs...)
-		cmd.Env = env
-		cmd.Dir = dir // In Go module mode we run from the temp module dir
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 		tail = func() error {
 			if err = f.Close(); err != nil {
 				return err
 			}
-			return run(cmd)
+			return gorun(srcFilename, env, dir, args...)
 		}
 	case actionPlay:
 		var cleanup func()
