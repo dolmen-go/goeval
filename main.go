@@ -46,6 +46,17 @@ func (*imports) String() string {
 }
 
 func (imp *imports) Set(s string) error {
+	// Allow -i fmt,os
+	// Comma is not allowed in import path
+	if p1, remainder, ok := strings.Cut(s, ","); ok {
+		err := imp.Set(p1)
+		if err == nil {
+			imp.Set(remainder)
+		}
+		return err
+	}
+
+	// Optional aliasing with [alias=]import
 	var alias, path, version string
 	var ok bool
 	if alias, path, ok = strings.Cut(s, "="); !ok {

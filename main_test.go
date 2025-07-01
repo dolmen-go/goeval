@@ -65,3 +65,18 @@ func Example_flag() {
 	// -x
 	// toto.go
 }
+
+func Example_import() {
+	goeval(`-goimports=`, `-i`, `fmt`, `fmt.Println("OK")`)
+	goeval(`-goimports=`, `-i=fmt`, `fmt.Println("OK")`)
+	goeval(`-goimports=`, `-i`, `fmt`, `-i`, `time`, `fmt.Println(time.Time{}.In(time.UTC))`)
+	goeval(`-goimports=`, `-i`, `fmt,time`, `fmt.Println(time.Time{}.In(time.UTC))`)
+	goeval(`-goimports=`, `-i=fmt,time`, `fmt.Println(time.Time{}.In(time.UTC))`)
+
+	// Output:
+	// OK
+	// OK
+	// 0001-01-01 00:00:00 +0000 UTC
+	// 0001-01-01 00:00:00 +0000 UTC
+	// 0001-01-01 00:00:00 +0000 UTC
+}
