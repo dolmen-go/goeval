@@ -42,14 +42,9 @@ func Example_dump() {
 	// Output:
 	// package main
 	//
-	// import (
-	//	"fmt"
-	//	"os"
-	// )
+	// import "fmt"
 	//
 	// func main() {
-	//	os.Args[1] = os.Args[0]
-	//	os.Args = os.Args[1:]
 	// //line :1
 	//	fmt.Println("OK")
 	// }
