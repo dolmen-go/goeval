@@ -11,17 +11,17 @@ import (
 )
 
 type uaTransport struct {
-	*http.Transport
+	rt        http.RoundTripper
 	UserAgent string
 }
 
 func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("User-Agent", t.UserAgent)
-	return t.Transport.RoundTrip(req)
+	return t.rt.RoundTrip(req)
 }
 
 func main() {
-	http.DefaultTransport = &uaTransport{Transport: http.DefaultTransport.(*http.Transport), UserAgent: os.Args[1]}
+	http.DefaultTransport = &uaTransport{rt: http.DefaultTransport, UserAgent: os.Args[1]}
 
 	code, _ := io.ReadAll(os.Stdin)
 	resp, err := http.PostForm("https://play.golang.org/compile", url.Values{"body": {string(code)}})
