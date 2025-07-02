@@ -52,7 +52,7 @@ $ goeval -i cpuid=github.com/klauspost/cpuid/v2@v2.2.3 'fmt.Println(cpuid.CPU.X6
 
 <!--
 ```console
-$ goeval -i net/http -i _=github.com/mattn/go-sqlite3@latest -i github.com/dolmen-go/sqlar/sqlarfs@v0.2.1 'db,err:=sql.Open("sqlite3","file:"+os.Args[1]+"?mode=ro&immutable=1");if err!=nil{panic(err)};defer db.Close();http.Handle("/",http.FileServerFS(sqlarfs.New(db)));http.ListenAndServe("localhost:8084",nil)' "$(go env GOMODCACHE)"/github.com/dolmen-go/sqlar/sqlarfs@v0.2.1/sqlarfs/testdata/dir.sqlar
+$ goeval -i net/http -i _=github.com/mattn/go-sqlite3@latest -i github.com/dolmen-go/sqlar/sqlarfs@v0.2.1 'db,err:=sql.Open("sqlite3","file:"+os.Args[1]+"?mode=ro&immutable=1");if err!=nil{panic(err)};defer db.Close();http.Handle("/",http.FileServerFS(sqlarfs.New(db)));http.ListenAndServe("localhost:8084",nil)' "$(go env GOMODCACHE)"/github.com/dolmen-go/sqlar@v0.2.1/sqlarfs/testdata/dir.sqlar
 ```
 -->
 
