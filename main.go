@@ -210,8 +210,11 @@ const (
 
 var action actionBits
 
-func flagAction(name string, a actionBits, usage string) {
-	flag.BoolFunc(name, usage, func(string) error {
+func flagAction(name string, a actionBits, target *string, usage string) {
+	flag.BoolFunc(name, usage, func(value string) error {
+		if target == nil && value != "true" {
+			return errors.New("no value expected")
+		}
 		if action != actionRun {
 			return errors.New("flags -Eplay, -play and -share are exclusive")
 		}
@@ -233,11 +236,11 @@ func _main() error {
 	flag.StringVar(&goCmd, "go", "go", "go command path.")
 
 	// -E, like "cc -E"
-	flagAction("E", actionDump, "just dump the assembled source, without running it.")
-	flagAction("Eplay", actionDumpPlay, "just dump the assembled source for posting on https://go.dev/play")
+	flagAction("E", actionDump, nil, "just dump the assembled source, without running it.")
+	flagAction("Eplay", actionDumpPlay, nil, "just dump the assembled source for posting on https://go.dev/play")
 	// TODO allow to optionally set a different endpoint
-	flagAction("play", actionPlay, "run the code remotely on https://go.dev/play")
-	flagAction("share", actionShare, "share the code on https://go.dev/play and print the URL.")
+	flagAction("play", actionPlay, nil, "run the code remotely on https://go.dev/play")
+	flagAction("share", actionShare, nil, "share the code on https://go.dev/play and print the URL.")
 
 	// TODO allow to optionally set a different endpoint for the Go Playground
 
