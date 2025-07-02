@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -135,6 +136,40 @@ func runTime(cmd *exec.Cmd) error {
 	return cmd.Run()
 }
 
+func gorun(srcFilename string, env []string, buildDir string, runDir string, args ...string) error {
+	exeDir, err := os.MkdirTemp("", "goeval*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := os.RemoveAll(exeDir); err != nil {
+			log.Printf("RemoveAll(%q): %v", exeDir, err)
+		}
+	}()
+
+	exePath := filepath.Join(exeDir, "goeval-run")
+	if runtime.GOOS == "windows" {
+		exePath += ".exe"
+	}
+
+	cmdBuild := exec.Command(goCmd, "build", "-o", exePath, srcFilename)
+	cmdBuild.Env = env
+	cmdBuild.Dir = buildDir
+	cmdBuild.Stdout = os.Stdout
+	cmdBuild.Stderr = os.Stderr
+	if err := run(cmdBuild); err != nil {
+		return fmt.Errorf("failed to build: %w", err)
+	}
+
+	cmdRun := exec.Command(exePath, args...)
+	cmdRun.Env = env
+	cmdRun.Dir = runDir // In Go module mode we run from the temp module dir
+	cmdRun.Stdin = os.Stdin
+	cmdRun.Stdout = os.Stdout
+	cmdRun.Stderr = os.Stderr
+	return run(cmdRun)
+}
+
 var goCmd = "go"
 
 func getGOMODCACHE(env []string) (string, error) {
@@ -187,7 +222,7 @@ func flagAction(name string, a actionBits, usage string) {
 
 func _main() error {
 	imports := imports{
-		packages:   map[string]string{"  ": "os"},
+		packages:   map[string]string{},
 		onlySemVer: true,
 	}
 	flag.Var(&imports, "i", "* import package: [alias=]import-path\n* switch to Go module mode and import package: [alias=]import-path@version")
@@ -366,10 +401,6 @@ func _main() error {
 	}
 	src.WriteString("func main() {\n")
 	if action <= actionDump {
-		src.WriteString("os.Args[1] = os.Args[0]\nos.Args = os.Args[1:]\n")
-		if moduleMode {
-			fmt.Fprintf(&src, "_ = os.Chdir(%q)\n", origDir)
-		}
 		src.WriteString("//line :1\n")
 	}
 	src.WriteString(code)
@@ -391,22 +422,11 @@ func _main() error {
 		srcFinal = f
 		srcFilename = f.Name()
 
-		runArgs := make([]string, 0, 3+len(args))
-		runArgs = append(runArgs, "run", srcFilename, "--")
-		runArgs = append(runArgs, args...)
-		// log.Println(goCmd, runArgs)
-
-		cmd := exec.Command(goCmd, runArgs...)
-		cmd.Env = env
-		cmd.Dir = dir // In Go module mode we run from the temp module dir
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 		tail = func() error {
 			if err = f.Close(); err != nil {
 				return err
 			}
-			return run(cmd)
+			return gorun(srcFilename, env, dir, origDir, args...)
 		}
 	case actionPlay:
 		var cleanup func()
