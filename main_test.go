@@ -99,13 +99,21 @@ func (tl printlnWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// goevalT runs goeval with the given arguments, and sends each line from stdout to tb.Log.
-func goevalT(tb testing.TB, args ...string) {
+// goevalPrint runs goeval with the given arguments, and sends each line from standard output
+// to the stdout func (a [fmt.Println]-like func), and each line from standard error to the
+// stderr func.
+func goevalPrint(stdout func(...any), stderr func(...any), args ...string) {
 	cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
 	cmd.Stdin = nil
-	cmd.Stdout = printlnWriter(tb.Log)
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = printlnWriter(stdout)
+	cmd.Stderr = printlnWriter(stderr)
 	cmd.Run()
+}
+
+// goevalT runs goeval with the given arguments, and sends each line from stdout to tb.Log
+// and each line from stderr to tb.Error.
+func goevalT(tb testing.TB, args ...string) {
+	goevalPrint(tb.Log, tb.Error, args...)
 }
 
 func TestShowRuntimeBuildInfo(t *testing.T) {
@@ -113,5 +121,6 @@ func TestShowRuntimeBuildInfo(t *testing.T) {
 }
 
 func TestPrintStack(t *testing.T) {
-	goevalT(t, `-i=runtime/debug`, `-goimports=`, `debug.PrintStack()`)
+	// PrintStack sends output to stderr
+	goevalPrint(t.Log, t.Log, `-i=runtime/debug`, `-goimports=`, `debug.PrintStack()`)
 }
