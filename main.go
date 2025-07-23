@@ -152,7 +152,17 @@ func gorun(srcFilename string, env []string, buildDir string, runDir string, arg
 		exePath += ".exe"
 	}
 
-	cmdBuild := exec.Command(goCmd, "build", "-o", exePath, srcFilename)
+	cmdBuild := exec.Command(goCmd, "build",
+		// Do not embed VCS info:
+		// - there is nothing if fully built from temp dir (module mode)
+		// - or, if present, is not relevant for quick exec (GOPATH mode)
+		"-buildvcs=false",
+		// Trim paths because the paths of our ephemeral source files will not be helpful in a stack trace.
+		// This also hides goeval implementation details.
+		"-trimpath",
+
+		"-o", exePath,
+		srcFilename)
 	cmdBuild.Env = env
 	cmdBuild.Dir = buildDir
 	cmdBuild.Stdout = os.Stdout

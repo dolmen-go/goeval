@@ -17,8 +17,10 @@
 package main_test
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
+	"testing"
 )
 
 func goeval(args ...string) {
@@ -74,4 +76,51 @@ func Example_import() {
 	// 0001-01-01 00:00:00 +0000 UTC
 	// 0001-01-01 00:00:00 +0000 UTC
 	// 0001-01-01 00:00:00 +0000 UTC
+}
+
+// printlnWriter writes each line to a [fmt.Println]-like function.
+// [testing.T.Log] is such a function.
+type printlnWriter func(...any)
+
+func (tl printlnWriter) Write(b []byte) (int, error) {
+	for len(b) > 0 {
+		p := bytes.IndexByte(b, '\n')
+		if p == -1 {
+			tl(string(b))
+			break
+		}
+		line := b[:p]
+		if len(line) > 1 && line[p-1] == '\r' {
+			line = line[:p-1]
+		}
+		tl(string(line))
+		b = b[p+1:]
+	}
+	return len(b), nil
+}
+
+// goevalPrint runs goeval with the given arguments, and sends each line from standard output
+// to the stdout func (a [fmt.Println]-like func), and each line from standard error to the
+// stderr func.
+func goevalPrint(stdout func(...any), stderr func(...any), args ...string) {
+	cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
+	cmd.Stdin = nil
+	cmd.Stdout = printlnWriter(stdout)
+	cmd.Stderr = printlnWriter(stderr)
+	cmd.Run()
+}
+
+// goevalT runs goeval with the given arguments, and sends each line from stdout to tb.Log
+// and each line from stderr to tb.Error.
+func goevalT(tb testing.TB, args ...string) {
+	goevalPrint(tb.Log, tb.Error, args...)
+}
+
+func TestShowRuntimeBuildInfo(t *testing.T) {
+	goevalT(t, `-i=fmt,runtime/debug,os`, `-goimports=`, `bi,ok:=debug.ReadBuildInfo(); if !ok {os.Exit(1)}; fmt.Print(bi)`)
+}
+
+func TestPrintStack(t *testing.T) {
+	// PrintStack sends output to stderr
+	goevalPrint(t.Log, t.Log, `-i=runtime/debug`, `-goimports=`, `debug.PrintStack()`)
 }
