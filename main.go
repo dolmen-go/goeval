@@ -152,7 +152,9 @@ func gorun(srcFilename string, env []string, buildDir string, runDir string, arg
 		exePath += ".exe"
 	}
 
-	cmdBuild := exec.Command(goCmd, "build", "-o", exePath, srcFilename)
+	cmdBuild := exec.Command(goCmd, "build",
+		"-o", exePath,
+		srcFilename)
 	cmdBuild.Env = env
 	cmdBuild.Dir = buildDir
 	cmdBuild.Stdout = os.Stdout
