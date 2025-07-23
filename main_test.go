@@ -111,3 +111,7 @@ func goevalT(tb testing.TB, args ...string) {
 func TestShowRuntimeBuildInfo(t *testing.T) {
 	goevalT(t, `-i=fmt,runtime/debug,os`, `-goimports=`, `bi,ok:=debug.ReadBuildInfo(); if !ok {os.Exit(1)}; fmt.Print(bi)`)
 }
+
+func TestPrintStack(t *testing.T) {
+	goevalT(t, `-i=runtime/debug`, `-goimports=`, `debug.PrintStack()`)
+}
