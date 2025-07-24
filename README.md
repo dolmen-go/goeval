@@ -171,6 +171,7 @@ $ goeval -i golang.org/x/exp/constraints 'p(1);p(2.0);};func p[T constraints.Sig
 * [gommand](https://github.com/sno6/gommand) Go one liner program. Similar to `python -c`.
 * [gorram](https://github.com/natefinch/gorram) Like `go run` for any Go function.
 * [goexec](https://github.com/shurcooL/goexec) A command line tool to execute Go functions.
+* [goplay](https://github.com/haya14busa/goplay) Upload code on the Go Playground. `goplay` is like `goeval -share`; `goplay -run` is like `goeval -play`.
 
 ## 🛡️ License
 
