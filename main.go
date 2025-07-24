@@ -216,6 +216,8 @@ const (
 	actionDumpPlay            // -Eplay
 	actionPlay                // -play
 	actionShare               // -share
+
+	actionDefault = actionRun
 )
 
 var action actionBits
@@ -225,8 +227,8 @@ func flagAction(name string, a actionBits, target *string, usage string) {
 		if target == nil && value != "true" {
 			return errors.New("no value expected")
 		}
-		if action != actionRun {
-			return errors.New("flags -Eplay, -play and -share are exclusive")
+		if action != actionDefault {
+			return errors.New("flags -E, -Eplay, -play and -share are exclusive")
 		}
 		action = a
 		return nil
