@@ -292,6 +292,12 @@ func _main() error {
 	}
 
 	args := flag.Args()[1:]
+	if len(args) > 0 {
+		switch action {
+		case actionDump:
+			return errors.New("arguments not expected")
+		}
+	}
 
 	if goCmdResolved, err := exec.LookPath(goCmd); err != nil {
 		return fmt.Errorf("%q: %v", goCmd, err)
@@ -385,7 +391,10 @@ func _main() error {
 		defer os.Remove(dir + "/go.sum")
 	}
 
-	var src bytes.Buffer
+	var (
+		src        bytes.Buffer
+		injectArgs bool // inject our arguments into os.Args in the program source
+	)
 
 	// If sending to the Go Playground, export GOEXPERIMENT as a comment
 	if action >= actionDumpPlay {
@@ -398,6 +407,12 @@ func _main() error {
 			src.WriteString("// GOEXPERIMENT=")
 			src.WriteString(exp)
 			src.WriteString("\n\n")
+		}
+
+		injectArgs = len(args) > 0
+		if injectArgs {
+			// We need the os package to patch os.Args
+			imports.Set("os")
 		}
 	}
 
@@ -413,6 +428,9 @@ func _main() error {
 			}
 		}
 		fmt.Fprintf(&src, "import %s %q\n", alias, path)
+	}
+	if injectArgs {
+		fmt.Fprintf(&src, "func init() { os.Args = append(os.Args[:1], %#v...) }\n\n", args)
 	}
 	src.WriteString("func main() {\n")
 	if action <= actionDump {
