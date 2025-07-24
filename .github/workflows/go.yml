@@ -35,6 +35,9 @@ jobs:
       # buildvcs=true to get a proper User-Agent string also during tests
       run: go test -v -buildvcs=true ./...
 
+    - name: Run tests for the goeval.offline build
+      run: go test -v -buildvcs=true -tags goeval.offline ./...
+
     - name: Test -play
       run: |
         out="$(./goeval -play 'fmt.Println(time.Now())')"

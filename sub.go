@@ -1,3 +1,5 @@
+//go:build !goeval.offline
+
 /*
    Copyright 2025 Olivier Mengué.
 
@@ -25,12 +27,28 @@ import (
 	"os/exec"
 )
 
+func registerOnlineFlags() {
+	// TODO allow to optionally set a different endpoint
+	flagAction("play", actionPlay, nil, "run the code remotely on https://go.dev/play")
+	flagAction("share", actionShare, nil, "share the code on https://go.dev/play and print the URL.")
+}
+
 var (
 	//go:embed sub/play/play.go
 	playClient string
 	//go:embed sub/share/share.go
 	shareClient string
 )
+
+// prepareSubPlay prepare the source code for compilation and execution of sub/play/play.go.
+func prepareSubPlay() (stdin *bytes.Buffer, tail func() error, cleanup func()) {
+	return prepareSub(playClient)
+}
+
+// prepareSubPlay prepare the source code for compilation and execution of sub/share/share.go.
+func prepareSubShare() (stdin *bytes.Buffer, tail func() error, cleanup func()) {
+	return prepareSub(shareClient)
+}
 
 // prepareSub prepares execution of a sub command via a "go run".
 // The returned stdin buffer may be filled with data.

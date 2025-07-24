@@ -99,6 +99,13 @@ go1.24.4 X:rangefunc
 $ go install github.com/dolmen-go/goeval@latest
 ```
 
+Install with online features (`-play`, `-share`) disabled:
+
+```console
+$ go install -tags=goeval.offline github.com/dolmen-go/goeval@latest
+```
+
+
 ## 🗑️ Uninstall
 
 ```console

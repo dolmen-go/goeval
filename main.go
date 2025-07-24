@@ -266,11 +266,9 @@ func _main() error {
 	// -E, like "cc -E"
 	flagAction("E", actionDump, nil, "just dump the assembled source, without running it.")
 	flagAction("Eplay", actionDumpPlay, nil, "just dump the assembled source for posting on https://go.dev/play")
-	// TODO allow to optionally set a different endpoint
-	flagAction("play", actionPlay, nil, "run the code remotely on https://go.dev/play")
-	flagAction("share", actionShare, nil, "share the code on https://go.dev/play and print the URL.")
 
-	// TODO allow to optionally set a different endpoint for the Go Playground
+	// -play, -share
+	registerOnlineFlags()
 
 	flag.Func("o", "just build a binary, don't execute.", func(value string) (err error) {
 		if action != actionDefault {
@@ -491,11 +489,11 @@ func _main() error {
 		}
 	case actionPlay:
 		var cleanup func()
-		srcFinal, tail, cleanup = prepareSub(playClient)
+		srcFinal, tail, cleanup = prepareSubPlay()
 		defer cleanup()
 	case actionShare:
 		var cleanup func()
-		srcFinal, tail, cleanup = prepareSub(shareClient)
+		srcFinal, tail, cleanup = prepareSubShare()
 		defer cleanup()
 	default: // actionDump, actionDumpPlay
 		srcFinal = os.Stdout
