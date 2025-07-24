@@ -25,6 +25,12 @@ import (
 	"os/exec"
 )
 
+func registerOnlineFlags() {
+	// TODO allow to optionally set a different endpoint
+	flagAction("play", actionPlay, nil, "run the code remotely on https://go.dev/play")
+	flagAction("share", actionShare, nil, "share the code on https://go.dev/play and print the URL.")
+}
+
 var (
 	//go:embed sub/play/play.go
 	playClient string
