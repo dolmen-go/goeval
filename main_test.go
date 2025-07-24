@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -125,4 +127,31 @@ func TestShowRuntimeBuildInfo(t *testing.T) {
 func TestPrintStack(t *testing.T) {
 	// PrintStack sends output to stderr
 	goevalPrint(t.Log, t.Log, `-i=runtime/debug`, `-goimports=`, `debug.PrintStack()`)
+}
+
+// Test "goeval -o ..."
+func TestBuild(t *testing.T) {
+	tempDir := t.TempDir()
+
+	exe := filepath.Join(tempDir, "x")
+	if runtime.GOOS == "windows" {
+		exe += ".exe"
+	}
+	t.Logf("Building %q...", exe)
+
+	goevalT(t, `-o`, exe, `fmt.Print(os.Args[1])`)
+
+	_, err := os.Stat(exe)
+	if err != nil {
+		t.Fatalf(`%q: %v`, exe, err)
+	}
+
+	cmd := exec.Command(exe, `toto`)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf(`exec(%q): %v`, exe, err)
+	}
+	if string(out) != "toto" {
+		t.Errorf(`output: got %q, expected "toto"`, out)
+	}
 }
