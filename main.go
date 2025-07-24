@@ -137,19 +137,24 @@ func runTime(cmd *exec.Cmd) error {
 }
 
 func gorun(srcFilename string, env []string, buildDir string, runDir string, args ...string) error {
-	exeDir, err := os.MkdirTemp("", "goeval*")
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := os.RemoveAll(exeDir); err != nil {
-			log.Printf("RemoveAll(%q): %v", exeDir, err)
-		}
-	}()
+	exePath := buildOutput
+	if exePath == "" {
 
-	exePath := filepath.Join(exeDir, "goeval-run")
-	if runtime.GOOS == "windows" {
-		exePath += ".exe"
+		exeDir, err := os.MkdirTemp("", "goeval*")
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			if err := os.RemoveAll(exeDir); err != nil {
+				log.Printf("RemoveAll(%q): %v", exeDir, err)
+			}
+		}()
+
+		exePath = filepath.Join(exeDir, "goeval-run")
+		if runtime.GOOS == "windows" {
+			exePath += ".exe"
+		}
 	}
 
 	cmdBuild := exec.Command(goCmd, "build",
@@ -169,6 +174,11 @@ func gorun(srcFilename string, env []string, buildDir string, runDir string, arg
 	cmdBuild.Stderr = os.Stderr
 	if err := run(cmdBuild); err != nil {
 		return fmt.Errorf("failed to build: %w", err)
+	}
+
+	// actionBuild: don't run
+	if buildOutput != "" {
+		return nil
 	}
 
 	cmdRun := exec.Command(exePath, args...)
@@ -212,6 +222,7 @@ type actionBits uint
 
 const (
 	actionRun      actionBits = iota
+	actionBuild               // -o ...
 	actionDump                // -E
 	actionDumpPlay            // -Eplay
 	actionPlay                // -play
@@ -220,7 +231,12 @@ const (
 	actionDefault = actionRun
 )
 
-var action actionBits
+var (
+	action      actionBits
+	buildOutput string // -o
+
+	errActionExclusive = errors.New("flags -o, -E, -Eplay, -play and -share are exclusive")
+)
 
 func flagAction(name string, a actionBits, target *string, usage string) {
 	flag.BoolFunc(name, usage, func(value string) error {
@@ -228,7 +244,7 @@ func flagAction(name string, a actionBits, target *string, usage string) {
 			return errors.New("no value expected")
 		}
 		if action != actionDefault {
-			return errors.New("flags -E, -Eplay, -play and -share are exclusive")
+			return errActionExclusive
 		}
 		action = a
 		return nil
@@ -255,6 +271,18 @@ func _main() error {
 	flagAction("share", actionShare, nil, "share the code on https://go.dev/play and print the URL.")
 
 	// TODO allow to optionally set a different endpoint for the Go Playground
+
+	flag.Func("o", "just build a binary, don't execute.", func(value string) (err error) {
+		if action != actionDefault {
+			return errActionExclusive
+		}
+		if value == "" {
+			return errors.New("invalid empty output file")
+		}
+		action = actionBuild
+		buildOutput, err = filepath.Abs(value)
+		return
+	})
 
 	showCmds := flag.Bool("x", false, "print commands executed.")
 
@@ -294,7 +322,7 @@ func _main() error {
 	args := flag.Args()[1:]
 	if len(args) > 0 {
 		switch action {
-		case actionDump:
+		case actionBuild, actionDump:
 			return errors.New("arguments not expected")
 		}
 	}
@@ -445,7 +473,7 @@ func _main() error {
 		tail        func() error
 	)
 	switch action {
-	case actionRun:
+	case actionRun, actionBuild:
 		f, err := os.CreateTemp(dir, "*.go")
 		if err != nil {
 			log.Fatal(err)
@@ -521,7 +549,7 @@ func _main() error {
 	*/
 
 	// dump go.mod, go.sum
-	if moduleMode && action != actionRun {
+	if moduleMode && action >= actionDump {
 		gomod, err := os.Open(dir + "/go.mod")
 		if err != nil {
 			log.Fatal(err)
