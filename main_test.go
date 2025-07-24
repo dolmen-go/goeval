@@ -20,8 +20,6 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
-	"runtime"
-	"strings"
 	"testing"
 )
 
@@ -108,10 +106,6 @@ func goevalPrint(stdout func(...any), stderr func(...any), args ...string) {
 	// As goeval is declared as a tool in go.mod (go get -tool .), we can call it as a tool.
 	// "go tool" preserves the exit code while "go run" doesn't.
 	cmd := exec.Command("go", append([]string{"tool", "goeval"}, args...)...)
-	if strings.HasPrefix(runtime.Version(), "go1.23.") { // TODO remove this compatibility shim
-		// Allow testing with Go < 1.24, unfortunately with all "go run" quirks
-		cmd = exec.Command("go", append([]string{"run", "."}, args...)...)
-	}
 	cmd.Stdin = nil
 	cmd.Stdout = printlnWriter(stdout)
 	cmd.Stderr = printlnWriter(stderr)

@@ -9,7 +9,8 @@ jobs:
       matrix:
         go:
         - stable
-        - oldstable
+        # "tool" directive in go.mod breaks go1.23
+        # - oldstable
     steps:
 
     - name: Check out code
