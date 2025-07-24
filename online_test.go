@@ -9,3 +9,11 @@ func Example_play() {
 	// Output:
 	// 2009-11-10 23:00:00 +0000 UTC m=+0.000000001
 }
+
+// Show "goeval -play", with arguments values sent with the program code
+func Example_playWithArgs() {
+	goeval(`-play`, `fmt.Println(os.Args[1])`, `toto`)
+
+	// Output:
+	// toto
+}
