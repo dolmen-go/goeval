@@ -36,6 +36,7 @@ func getUserAgent() string {
 		// The HTTP specification allows comments in header values: they are enclosed by parenthesis.
 		return "goeval/" + version + " (" + bi.Path + ")"
 	}
-	// "go run" reports "(devel)" as version but in header value parenthesis are reserved chars (for comments).
+	// "go build" with -buildvcs=false (default for "go run", "go test") reports "(devel)" as version
+	// but in header value parenthesis are reserved chars (for comments).
 	return "goeval/" + strings.Trim(bi.Main.Version, "()") + " (" + bi.Main.Path + ")"
 }
