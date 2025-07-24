@@ -1,3 +1,5 @@
+//go:build !goeval.offline
+
 /*
    Copyright 2025 Olivier Mengué.
 
