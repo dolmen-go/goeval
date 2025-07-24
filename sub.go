@@ -32,6 +32,16 @@ var (
 	shareClient string
 )
 
+// prepareSubPlay prepare the source code for compilation and execution of sub/play/play.go.
+func prepareSubPlay() (stdin *bytes.Buffer, tail func() error, cleanup func()) {
+	return prepareSub(playClient)
+}
+
+// prepareSubPlay prepare the source code for compilation and execution of sub/share/share.go.
+func prepareSubShare() (stdin *bytes.Buffer, tail func() error, cleanup func()) {
+	return prepareSub(shareClient)
+}
+
 // prepareSub prepares execution of a sub command via a "go run".
 // The returned stdin buffer may be filled with data.
 // cleanup must be called after cmd.Run() to clean the tempoary go source created.

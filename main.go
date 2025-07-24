@@ -491,11 +491,11 @@ func _main() error {
 		}
 	case actionPlay:
 		var cleanup func()
-		srcFinal, tail, cleanup = prepareSub(playClient)
+		srcFinal, tail, cleanup = prepareSubPlay()
 		defer cleanup()
 	case actionShare:
 		var cleanup func()
-		srcFinal, tail, cleanup = prepareSub(shareClient)
+		srcFinal, tail, cleanup = prepareSubShare()
 		defer cleanup()
 	default: // actionDump, actionDumpPlay
 		srcFinal = os.Stdout
