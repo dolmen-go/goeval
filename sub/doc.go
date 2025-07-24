@@ -14,11 +14,13 @@
    limitations under the License.
 */
 
-// This directory contains sub commands of [github.com/dolmen-go/goeval].
+// Package sub contains sub commands of [github.com/dolmen-go/goeval].
 //
 // Sub commands have the following constraints:
 //   - only stdlib dependencies
 //   - compiled in GOPATH mode (GO111MODULE=off)
 //
-// The source code of each command is embedded (see [embed]) in the goeval binary and commands are launched with "go run".
+// The source code of each command is embedded (see [embed]) in the goeval binary (see ../sub.go)
+// and commands are launched with "go run". This allows to keep the goeval binary lightweight
+// ([net/http] and the crypto stack are not bundled in the main binary).
 package sub
