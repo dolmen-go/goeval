@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-var version = "v1.2.0" // FIXME set at compile time with -ldflags="-X main.version="
+var version = "v1.4.0" // FIXME set at compile time with -ldflags="-X main.version="
 
 // getUserAgent returns the HTTP User-Agent header value to use for -play and -share.
 //
