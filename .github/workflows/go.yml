@@ -32,7 +32,8 @@ jobs:
       run: ./goeval 'fmt.Println(runtime.Version())'
 
     - name: Run tests
-      run: go test -v ./...
+      # buildvcs=true to get a proper User-Agent string also during tests
+      run: go test -v -buildvcs=true ./...
 
     - name: Test -play
       run: |
