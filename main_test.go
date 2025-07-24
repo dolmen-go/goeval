@@ -103,7 +103,9 @@ func (tl printlnWriter) Write(b []byte) (int, error) {
 // to the stdout func (a [fmt.Println]-like func), and each line from standard error to the
 // stderr func.
 func goevalPrint(stdout func(...any), stderr func(...any), args ...string) {
-	cmd := exec.Command("go", append([]string{"run", "."}, args...)...)
+	// As goeval is declared as a tool in go.mod (go get -tool .), we can call it as a tool.
+	// "go tool" preserves the exit code while "go run" doesn't.
+	cmd := exec.Command("go", append([]string{"tool", "goeval"}, args...)...)
 	cmd.Stdin = nil
 	cmd.Stdout = printlnWriter(stdout)
 	cmd.Stderr = printlnWriter(stderr)

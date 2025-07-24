@@ -8,3 +8,5 @@ require (
 )
 
 require golang.org/x/sync v0.12.0 // indirect
+
+tool github.com/dolmen-go/goeval
