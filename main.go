@@ -466,9 +466,14 @@ func _main() error {
 	src.WriteString("\n}\n")
 
 	var (
+		// srcFinal is the final transformed source after goimports.
+		// When in module mode AND dumping (-E, -Eplay) or sending to the Playground (-play, -share),
+		// this is not just the Go code, but a Txtar archive that includes go.mod and go.sum.
+		srcFinal io.Writer
+		// srcFilename is the full path to the srcFinal on disk that is needed by goimports to locate go.mod.
 		srcFilename string
-		srcFinal    io.Writer // The final transformed source after goimports. Txtar format if in Go modules mode.
-		tail        func() error
+		// tail is the action that will process srcFinal.
+		tail func() error
 	)
 	switch action {
 	case actionRun, actionBuild:
