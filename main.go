@@ -402,6 +402,9 @@ func _main() error {
 			env = append(env, "GOPROXY=off")
 		}
 
+		// Do not let an inherited GOMOD variable go through.
+		env = append(env, "GOMOD="+gomod)
+
 		cmd := exec.Command(goCmd, gogetArgs...)
 		cmd.Env = env
 		cmd.Dir = dir
