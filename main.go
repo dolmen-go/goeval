@@ -259,7 +259,7 @@ func _main() error {
 	flag.Var(&imports, "i", ``+
 		"* import package local package from GOPATH:  [alias=]import-path\n"+
 		"* import package in Go module mode:          [alias=]import-path@version\n"+
-		"Once a version is mentioned, Go module mode is enabled globally."
+		"Once a version is mentioned, Go module mode is enabled globally.",
 	)
 
 	var goimports string
