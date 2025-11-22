@@ -1,5 +1,17 @@
 
-# goeval - Evaluate Go snippets instantly from the command line
+# `goeval` - Evaluate Go snippets instantly from the command line
+
+`goeval` is a command-line tool for running Go snippets. By default, it uses
+the local Go toolchain for instant execution. When combined with the `-play`
+or `-share` flags, it becomes a terminal interface for running and sharing
+code using the official [Go Playground](http://play.go.dev/) service online.
+
+## Features
+
+* Local mode: Instantly execute one-off Go code snippets using your local Go compiler.
+* Playground mode: Run code through the official online Go Playground API to test environment behavior or share results.
+* Supports quick code sharing via official Go Playground URLs.
+* No need to create local files or manage Go modules for simple tests.
 
 ## 🚀 Demo
 
