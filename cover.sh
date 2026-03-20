@@ -8,11 +8,6 @@ go=go
 goeval=./goeval.cover
 goeval_offline=./goeval-offline.cover
 
-if ! command -v goimports >/dev/null; then
-        echo "goimports: command not found." >&2
-        exit 1
-fi
-
 if [[ ! -d "$GOCOVERDIR" ]]; then
         mkdir -p "$GOCOVERDIR"
 else
@@ -25,6 +20,11 @@ echo Building...
 
 $go build -covermode=set -coverpkg=./... -buildvcs=true -o=$goeval .
 $go build -covermode=set -coverpkg=./... -buildvcs=true -tags=goeval.offline -o=$goeval_offline .
+
+# Ensure that goimports (declared as tool in go.mod) is built
+$go tool goimports -h >/dev/null || :
+# Show goimports version
+$go version -m $($go tool -n goimports)
 
 export GOCOVERDIR
 
@@ -67,7 +67,8 @@ $goeval -goimports=goimports -E 'fmt.Println("Hello, world")'
 $goeval -goimports= -E 'fmt.Println("Hello, world")'
 
 # With goimports as external command
-$goeval -goimports="$(command -v goimports)" -E 'fmt.Println("Hello, world")'
+# We are using the one declared as a tool in go.mod
+$goeval -goimports="$($go tool -n goimports)" -E 'fmt.Println("Hello, world")'
 
 
 # GOPATH mode with external package
