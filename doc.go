@@ -16,14 +16,19 @@
 
 // Command goeval allows to run Go snippets given on the command line.
 //
-// A Go toolchain must be available in $PATH as goeval relies on "go run".
+// By default, it uses the local Go toolchain for instant execution. When
+// combined with the `-play` or `-share` flags, it becomes a terminal
+// interface for running and sharing code using the official
+// [Go Playground] service online.
+//
+// A Go toolchain must be available in $PATH as goeval relies on "go build".
 //
 // The code, given either as the first argument or on stdin, is wrapped as
 // the body of a main() function in a main package, and executed with "go run".
 //
 // Imports are implicit (they are usually resolved automatically thanks to
 // [goimports]) but they can be explicitely specified using -i.
-// If at least one package import is given with a version (import-path@version),
+// If at least one package import is given with a version (-i import-path@version),
 // a full Go module is assembled, and imports without version are resolved
 // as the latest version available in the local Go module cache (GOMODCACHE).
 //
@@ -42,6 +47,7 @@
 //	go install github.com/dolmen-go/goeval@latest
 //	goeval 'fmt.Println("Hello, world")'
 //
-// [goimports]: https://pkg.go.dev/golang.org/x/tools/imports
+// [Go Playground]: https://go.dev/play
 // [the Go Playground]: https://go.dev/play
+// [goimports]: https://pkg.go.dev/golang.org/x/tools/imports
 package main
