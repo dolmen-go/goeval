@@ -6,7 +6,7 @@ the local Go toolchain for instant execution. When combined with the `-play`
 or `-share` flags, it becomes a terminal interface for running and sharing
 code using the official [Go Playground](http://play.go.dev/) service online.
 
-## Features
+## ✨ Features
 
 * Local mode: Instantly execute one-off Go code snippets using your local Go compiler.
 * Playground mode: Run code through the official online Go Playground API to test environment behavior or share results.

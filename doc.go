@@ -28,7 +28,7 @@
 //
 // Imports are implicit (they are usually resolved automatically thanks to
 // [goimports]) but they can be explicitely specified using -i.
-// If at least one package import is given with a version (import-path@version),
+// If at least one package import is given with a version (-i import-path@version),
 // a full Go module is assembled, and imports without version are resolved
 // as the latest version available in the local Go module cache (GOMODCACHE).
 //
@@ -48,6 +48,6 @@
 //	goeval 'fmt.Println("Hello, world")'
 //
 // [Go Playground]: https://go.dev/play
-// [goimports]: https://pkg.go.dev/golang.org/x/tools/imports
 // [the Go Playground]: https://go.dev/play
+// [goimports]: https://pkg.go.dev/golang.org/x/tools/imports
 package main
