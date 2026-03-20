@@ -1,1 +1,7 @@
 /goeval
+
+# Output of cover.sh
+/.coverage
+/.coverage.out
+/goeval.cover
+/goeval-offline.cover
