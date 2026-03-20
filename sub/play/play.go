@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -21,6 +23,9 @@ func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func main() {
+	log.SetFlags(0)
+	log.SetPrefix("play: ")
+
 	http.DefaultTransport = &uaTransport{rt: http.DefaultTransport, UserAgent: os.Args[1]}
 
 	code, _ := io.ReadAll(os.Stdin)
@@ -29,6 +34,16 @@ func main() {
 		log.Fatal(err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		log.Fatalf("%s: %s", resp.Request.URL, resp.Status)
+		// Dump the full HTTP response
+		// fmt.Fprintln(os.Stderr, resp.Status)
+		// resp.Header.Write(os.Stderr)
+		// io.Copy(os.Stderr, resp.Body)
+		// os.Exit(1)
+	}
+
 	// resp.Body = io.NopCloser(io.TeeReader(resp.Body, os.Stdout)); // Enable for debugging
 	var r struct {
 		Errors string
@@ -41,7 +56,16 @@ func main() {
 		// IsTest      bool // unused
 		// TestsFailed int  // unused
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+
+	var buf bytes.Buffer
+	rBody := io.TeeReader(resp.Body, &buf)
+
+	if err := json.NewDecoder(rBody).Decode(&r); err != nil {
+		// Dump the full HTTP response
+		fmt.Fprintln(os.Stderr, resp.Status)
+		resp.Header.Write(os.Stderr)
+		io.Copy(os.Stderr, io.MultiReader(&buf, resp.Body))
+
 		log.Fatal(err)
 	}
 	if r.Errors != "" {
