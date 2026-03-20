@@ -54,7 +54,7 @@ $goeval -i=.=fmt,time,_=os 'Println(time.Now())'
 
 # -o
 {
-        tmp_exe=$(mktemp -t goeval-cover)
+        tmp_exe=$(mktemp -t .goeval-cover.XXXXXXXXX)
         $goeval -i=.=fmt,time -o "$tmp_exe" 'Println(time.Now())'
         "$tmp_exe"
         rm "$tmp_exe"
