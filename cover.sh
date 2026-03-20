@@ -72,11 +72,11 @@ $goeval -goimports="$($go tool -n goimports)" -E 'fmt.Println("Hello, world")'
 
 
 # GOPATH mode with external package
+# With go1.26, "go get" doesn't work anymore in GOPATH mode
 #GO111MODULE=off $go get github.com/klauspost/cpuid
 if [[ ! -d "$(go env GOPATH)"/src/github.com/klauspost/cpuid/v2 ]]; then
         mkdir -p "$(go env GOPATH)"/src/github.com/klauspost/cpuid
-        cd "$(go env GOPATH)"/src/github.com/klauspost/cpuid
-        git clone "$(go env GOPATH)"/src/github.com/klauspost/cpuid.git v2
+        git -C "$(go env GOPATH)"/src/github.com/klauspost/cpuid clone https://github.com/klauspost/cpuid.git v2
 fi
 GO111MODULE=off $goeval -i github.com/klauspost/cpuid/v2 'fmt.Println(cpuid.CPU.X64Level())'
 
