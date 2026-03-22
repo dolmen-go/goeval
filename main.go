@@ -365,7 +365,9 @@ func _main() error {
 		if dir, err = os.MkdirTemp("", "goeval*"); err != nil {
 			log.Fatal(err)
 		}
-		defer os.Remove(dir)
+		// Remove dir, dir/go.mod, dir/go.sum
+		// Ignore errors: this is a temp dir
+		defer os.RemoveAll(dir)
 
 		moduleName := filepath.Base(dir)
 
@@ -378,7 +380,6 @@ func _main() error {
 		if err := os.WriteFile(gomod, []byte("module "+moduleName+"\n"), 0600); err != nil {
 			log.Fatal("go.mod:", err)
 		}
-		defer os.Remove(gomod)
 
 		var gogetArgs []string
 		gogetArgs = append(gogetArgs, "get", "--")
@@ -420,7 +421,6 @@ func _main() error {
 			log.Fatal("go get failure:", err)
 		}
 		// log.Println("go get OK.")
-		defer os.Remove(dir + "/go.sum")
 	}
 
 	var (
