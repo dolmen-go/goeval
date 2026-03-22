@@ -2,22 +2,21 @@ name: Go
 on: [push]
 jobs:
 
-  build:
-    name: Build&test
+  test:
+    name: Build & test
     runs-on: ubuntu-latest
     strategy:
       matrix:
         go:
         - stable
-        # "tool" directive in go.mod breaks go1.23
-        # - oldstable
+        - oldstable
     steps:
 
     - name: Check out code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go }}
       id: go
@@ -40,10 +39,65 @@ jobs:
 
     - name: Test -play
       run: |
-        out="$(./goeval -play 'fmt.Println(time.Now())')"
+        out="$(./goeval -play -i=fmt,time 'fmt.Println(time.Now())')"
         expected='2009-11-10 23:00:00 +0000 UTC m=+0.000000001'
         if [ "$out" != "$expected" ]; then
           echo "got:      $out"
           echo "expected: $expected"
           exit 1
         fi
+
+  quality:
+    name: Quality reports
+    needs: [ test ]
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          # Default is 1 (shallow clone with a single commit)
+          # but SonarQube wants full history
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test, with coverage
+        run: go test -json -covermode=set -coverprofile=.coverage.1.out -coverpkg=./... ./... > .gotest.out
+
+      - name: Run testsuite with coverage (cover.sh)
+        run: ./cover.sh .coverage.2.out
+
+      - name: Merge coverage files
+        run: cat .coverage.?.out > .coverage.out ; rm .coverage.?.out
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          # https://sonarcloud.io/project/configuration/GitHubActions?id=dolmen-go_goeval
+          # https://github.com/dolmen-go/goeval/settings/secrets/actions
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          # See also sonar-project.properties
+          args: >
+            -Dsonar.go.tests.reportPaths=.gotest.out
+            -Dsonar.go.coverage.reportPaths=.coverage.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          # https://github.com/codecov/codecov-action/blob/main/README.md#arguments
+          disable_search: true
+          files: ./.coverage.out
+          fail_ci_if_error: true
+          report_type: coverage
+          disable_telem: true
+          # https://app.codecov.io/gh/dolmen-go/goeval/config/general
+          # https://github.com/dolmen-go/goeval/settings/secrets/actions
+          token: ${{ secrets.CODECOV_TOKEN }}
