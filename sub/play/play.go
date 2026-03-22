@@ -69,7 +69,11 @@ func main() {
 		log.Fatal(err)
 	}
 	if r.Errors != "" {
-		log.Print(r.Errors)
+		fmt.Fprint(os.Stderr, r.Errors)
+		// The Playground doesn't set an exit code in case of error, but we want that.
+		if r.Status == 0 {
+			r.Status = 1
+		}
 	}
 	// Replay events
 	for _, ev := range r.Events {
