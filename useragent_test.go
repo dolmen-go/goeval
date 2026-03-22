@@ -30,6 +30,7 @@ func TestShowUserAgent(t *testing.T) {
 			t.Log("\033[1;31mRun this test with -buildvcs=true\033[m")
 		}
 		t.Logf("%#v", bi)
+		t.Logf("BuildInfo:\n%s", bi)
 	}
 
 	t.Log("User-Agent:", getUserAgent())
