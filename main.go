@@ -50,11 +50,10 @@ func (imp *imports) Set(s string) error {
 	// Allow -i fmt,os
 	// Comma is not allowed in import path
 	if p1, remainder, ok := strings.Cut(s, ","); ok {
-		err := imp.Set(p1)
-		if err == nil {
-			imp.Set(remainder)
+		if err := imp.Set(p1); err != nil {
+			return err
 		}
-		return err
+		return imp.Set(remainder)
 	}
 
 	// Optional aliasing with [alias=]import
