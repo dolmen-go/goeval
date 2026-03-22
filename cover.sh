@@ -3,7 +3,7 @@
 set -euo pipefail
 
 output="${1:-.coverage.out}"
-GOCOVERDIR=.coverage
+GOCOVERDIR=$(pwd)/.coverage
 go=go
 goeval=./goeval.cover
 goeval_offline=./goeval-offline.cover
@@ -107,6 +107,17 @@ $goeval_offline -play 'fmt.Println("Hello, world")' || :
 # TODO(dolmen) Mock play.golang.org/share
 
 # -------------------------------------------------------------
+
+# Tests in sub/play_test.go and sub/share_test.go manage production of coverage data
+# based on the presence of the GOCOVERDIR value.
+# So we must run "normal" (not -cover).
+
+$go test -v ./sub/play ./sub/share
+
+# -------------------------------------------------------------
+
+echo '== Coverage =='
+go tool covdata percent -i="$GOCOVERDIR"
 
 go tool covdata textfmt -i="$GOCOVERDIR" -o="$output"
 
