@@ -24,7 +24,7 @@ $go build -covermode=set -coverpkg=./... -buildvcs=true -tags=goeval.offline -o=
 # Ensure that goimports (declared as tool in go.mod) is built
 $go tool goimports -h >/dev/null || :
 # Show goimports version
-$go version -m $($go tool -n goimports)
+$go version -m "$($go tool -n goimports)"
 
 export GOCOVERDIR
 
@@ -111,5 +111,5 @@ $goeval_offline -play 'fmt.Println("Hello, world")' || :
 go tool covdata textfmt -i="$GOCOVERDIR" -o="$output"
 
 if [[ -t 0 ]] && command -v open >/dev/null; then
-        $go tool cover -html=$output
+        $go tool cover -html="$output"
 fi
