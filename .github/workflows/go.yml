@@ -68,14 +68,11 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Test, with coverage
-        run: go test -json -covermode=set -coverprofile=.coverage.1.out -coverpkg=./... ./... > .gotest.out
+      - name: Test with JSON output, for SonarQube
+        run: go test -json ./... > .gotest.out
 
       - name: Run testsuite with coverage (cover.sh)
-        run: ./cover.sh .coverage.2.out
-
-      - name: Merge coverage files
-        run: cat .coverage.?.out > .coverage.out ; rm .coverage.?.out
+        run: ./cover.sh .coverage.out
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v7
