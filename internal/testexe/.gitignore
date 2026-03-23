@@ -1,0 +1,3 @@
+# Output of cover-testexe.sh
+/.coverage.[12]
+/.coverage.out
