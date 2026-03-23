@@ -3,23 +3,26 @@
 set -euo pipefail
 
 output="${1:-.coverage.out}"
-GOCOVERDIR=$(pwd)/.coverage
 go=go
 goeval=./goeval.cover
 goeval_offline=./goeval-offline.cover
 
-if [[ ! -d "$GOCOVERDIR" ]]; then
-        mkdir -p "$GOCOVERDIR"
-else
-        rm -f "$GOCOVERDIR"/cov*
+if [[ ! -d .coverage.1 || ! -d .coverage.2 ]]; then
+        mkdir -p .coverage.1 .coverage.2
 fi
+rm -f .coverage.1/cov* .coverage.2/cov* .coverage/cov* "$output"
+
 
 unset GO111MODULE
 
 echo Building...
 
-$go build -covermode=set -coverpkg=./... -buildvcs=true -o=$goeval .
-$go build -covermode=set -coverpkg=./... -buildvcs=true -tags=goeval.offline -o=$goeval_offline .
+$go build -cover -coverpkg=./... -buildvcs=true -o=$goeval .
+$go build -cover -coverpkg=./... -buildvcs=true -tags=goeval.offline -o=$goeval_offline .
+
+echo '== Testsuite =='
+
+GOCOVERDIR=$(pwd)/.coverage.1
 
 # Ensure that goimports (declared as tool in go.mod) is built
 $go tool goimports -h >/dev/null || :
@@ -110,16 +113,30 @@ $goeval_offline -play 'fmt.Println("Hello, world")' || :
 
 # Tests in sub/play_test.go and sub/share_test.go manage production of coverage data
 # based on the presence of the GOCOVERDIR value.
-# So we must run "normal" (not -cover).
+# So we must run "normal" tests (not -cover), but they'll receive our global GOCOVERDIR.
 
-$go test -v ./sub/play ./sub/share
+$go test -v ./sub/play ./sub/share ./internal/testexe/...
+
+unset GOCOVERDIR
+
+
+echo '== go test ./... =='
+# Coverage of internal/testexe via testsuite in internal/testexe/echo
+# => .coverage.2
+$go test -cover -coverpkg=./... ./... -args -test.gocoverdir="$(pwd)"/.coverage.2
+
 
 # -------------------------------------------------------------
 
-echo '== Coverage =='
-go tool covdata percent -i="$GOCOVERDIR"
+echo '== Aggreated coverage =='
 
-go tool covdata textfmt -i="$GOCOVERDIR" -o="$output"
+[ -d .coverage ] || mkdir .coverage
+go tool covdata merge -i=.coverage.1,.coverage.2 -o=.coverage
+
+# Show aggregated percent
+go tool covdata percent -i=.coverage
+
+go tool covdata textfmt -i=.coverage -o="$output"
 
 if [[ -t 0 ]] && command -v open >/dev/null; then
         $go tool cover -html="$output"
