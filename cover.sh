@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+#
+# Run an integration testsuite and collect code coverage.
+#
+# Reference documentation: https://go.dev/blog/integration-test-coverage
+
 
 set -euo pipefail
 
