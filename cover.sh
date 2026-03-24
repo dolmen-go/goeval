@@ -50,6 +50,13 @@ $goeval - <<EOF
 fmt.Println("Hello, world")
 EOF
 
+# stdin with shebang
+$goeval - <<EOF
+#!/usr/bin/env goeval -
+fmt.Println("Hello, world")
+EOF
+
+
 $goeval -E 'fmt.Println("Hello, world")'
 
 $goeval -x 'fmt.Println("Hello, world")'

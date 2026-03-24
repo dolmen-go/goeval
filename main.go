@@ -317,6 +317,14 @@ func _main() error {
 		if err != nil {
 			return err
 		}
+		if len(b) > 2 && b[0] == '#' { // skip first line if shebang
+			if i := bytes.IndexAny(b, "\r\n"); i > 0 {
+				if b[i] == '\r' && len(b) > i+1 && b[i+1] == '\n' { // eat CRLF
+					i++
+				}
+				b = b[i+1:]
+			}
+		}
 		code = string(b)
 	}
 
