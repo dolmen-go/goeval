@@ -12,6 +12,7 @@ code using the official [Go Playground](http://play.go.dev/) service online.
 * Playground mode: Run code through the official online Go Playground API to test environment behavior or share results.
 * Supports quick code sharing via official Go Playground URLs.
 * No need to create local files or manage Go modules for simple tests.
+* Project [started](https://github.com/dolmen-go/goeval/commit/861cf7b17fac546525bfba743103ce982b72429d) in 2019. Carefully maintained by a human being.
 
 ## 🚀 Demo
 
