@@ -43,10 +43,11 @@ func WithCoverage() bool {
 }
 
 type Main struct {
-	BuildArgs []string
-	BuildTags []string
-	BuildEnv  []string
-	Verbose   bool
+	PackagePath string
+	BuildArgs   []string
+	BuildTags   []string
+	BuildEnv    []string
+	Verbose     bool
 
 	running  atomic.Int32
 	building sync.Mutex
@@ -87,21 +88,29 @@ func (m *Main) build(log io.Writer) {
 
 	exeName := "testexe"
 
-	// Build the exeName from the directory of the caller
-	if _, srcFile, _, ok := runtime.Caller(0); ok {
-		callers := make([]uintptr, 10)
-		nFrames := runtime.Callers(1, callers)
-		frames := runtime.CallersFrames(callers[:nFrames])
-		for {
-			frame, more := frames.Next()
-			if frame.File != srcFile {
-				exeName = path.Base(path.Dir(frame.File))
-				break
-			}
-			if !more {
-				break
+	if m.PackagePath == "" || m.PackagePath == "." {
+		m.PackagePath = "."
+
+		// Build the exeName from the directory of the caller
+		// Note: we can't just use the caller's package name because it's "main" or "main_test".
+		if _, srcFile, _, ok := runtime.Caller(0); ok {
+			callers := make([]uintptr, 10)
+			nFrames := runtime.Callers(1, callers)
+			frames := runtime.CallersFrames(callers[:nFrames])
+			for {
+				frame, more := frames.Next()
+				if frame.File != srcFile {
+					exeName = path.Base(path.Dir(frame.File))
+					break
+				}
+				if !more {
+					break
+				}
 			}
 		}
+	} else {
+		m.PackagePath = filepath.ToSlash(m.PackagePath)
+		exeName = path.Base(m.PackagePath)
 	}
 
 	var err error
@@ -153,7 +162,7 @@ func (m *Main) build(log io.Writer) {
 		argsBuild = append(argsBuild, m.BuildArgs...)
 	}
 
-	argsBuild = append(argsBuild, ".")
+	argsBuild = append(argsBuild, m.PackagePath)
 
 	if m.Verbose {
 		fmt.Fprintf(log, "Building %s: go %v\n", exeName, argsBuild)

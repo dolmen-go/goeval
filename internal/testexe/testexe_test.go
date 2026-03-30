@@ -16,5 +16,53 @@
 
 package testexe_test
 
-// Nothing to see here: the testsuite is the 'echo' package.
+import (
+	"bytes"
+	"os"
+	"testing"
+
+	"github.com/dolmen-go/goeval/internal/testexe"
+)
+
+// See other tests in the 'echo' package.
 // See cover.sh to run echo's testsuite with coverage for both . and ./echo.
+
+func ExampleMain_Command() {
+	echo := testexe.Main{
+		PackagePath: "./echo",
+	}
+
+	cmd, cleanup := echo.Command("-stdout", "foo")
+	defer cleanup()
+
+	cmd.Stdout = os.Stdout
+
+	cmd.Run()
+
+	// Output:
+	// foo
+}
+
+func TestMain_TestCommand(t *testing.T) {
+	exampleMain_TestCommand(t)
+}
+
+func exampleMain_TestCommand(t *testing.T) {
+	echo := testexe.Main{
+		PackagePath: "./echo",
+	}
+
+	cmd := echo.TestCommand(t, "-stdout", "foo")
+
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if buf.String() != "foo\n" {
+		t.Fatalf("unexpected output: %q", buf.String())
+	}
+}
