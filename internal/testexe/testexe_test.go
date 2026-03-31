@@ -44,6 +44,7 @@ func ExampleMain_Command() {
 }
 
 func TestMain_TestCommand(t *testing.T) {
+	t.Parallel()
 	exampleMain_TestCommand(t)
 }
 

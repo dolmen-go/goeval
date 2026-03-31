@@ -180,6 +180,9 @@ func (m *Main) build(log io.Writer) {
 }
 
 func (m *Main) command(log io.Writer, args []string) (cmd *exec.Cmd, cleanup func()) {
+	if logFlush, ok := log.(interface{ Flush() error }); ok {
+		defer logFlush.Flush()
+	}
 	m.running.Add(1)
 
 	m.build(log)
@@ -194,10 +197,38 @@ func (m *Main) Command(args ...string) (cmd *exec.Cmd, cleanup func()) {
 	return m.command(os.Stderr, args)
 }
 
-func (m *Main) TestCommand(t testing.TB, args ...string) *exec.Cmd {
-	cmd, cleanup := m.command(t.Output(), args)
+// tbOutput replaces testing.TB.Output() when the test doesn't implement it (Go < 1.25).
+type tbOutput struct {
+	tb  testing.TB
+	buf []byte
+}
+
+func (o *tbOutput) Write(p []byte) (n int, err error) {
+	o.buf = append(o.buf, p...)
+	return len(p), nil
+}
+
+func (o *tbOutput) Flush() error {
+	if len(o.buf) > 0 {
+		o.tb.Log(string(o.buf))
+		o.buf = nil
+	}
+	return nil
+}
+
+// TestCommand returns a command to execute the test binary with the given arguments.
+func (m *Main) TestCommand(tb testing.TB, args ...string) *exec.Cmd {
+	tb.Helper()
+	var log io.Writer
+	// testing.TB.Output() was added in Go 1.25
+	if tbWithOutput, ok := any(tb).(interface{ Output() io.Writer }); ok {
+		log = tbWithOutput.Output()
+	} else {
+		log = &tbOutput{tb: tb}
+	}
+	cmd, cleanup := m.command(log, args)
 	if cleanup != nil {
-		t.Cleanup(cleanup)
+		tb.Cleanup(cleanup)
 	}
 	return cmd
 }
