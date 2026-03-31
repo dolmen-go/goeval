@@ -15,5 +15,6 @@ require (
 
 tool (
 	github.com/dolmen-go/goeval
+	github.com/dolmen-go/goeval/internal/testexe/golden
 	golang.org/x/tools/cmd/goimports
 )
