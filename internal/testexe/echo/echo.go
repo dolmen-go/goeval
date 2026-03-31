@@ -57,6 +57,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Println("usage: echo [options...]\n\noptions:")
+	fmt.Fprintln(flag.CommandLine.Output(), "usage: echo [options...]\n\noptions:")
 	flag.PrintDefaults()
 }
