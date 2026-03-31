@@ -270,27 +270,39 @@ func ParseCapture(r io.Reader) (*CaptureResult, error) {
 	return &result, nil
 }
 
-// TestCommandAssert executes the given command and asserts that its
+// CommandAssert executes the given command and asserts that its
 // captured result matches the expectation.
 // cmd.Args and cmd.Stdin are ignored and replaced by expected.Args and expected.Stdin for the execution.
-func TestCommandAssert(t testing.TB, cmd *exec.Cmd, expected *CaptureResult) {
-	t.Helper()
-
+func CommandAssert(cmd *exec.Cmd, expected *CaptureResult) error {
 	cmd.Stdin = strings.NewReader(expected.Stdin)
 	cmd.Args = append(append(make([]string, 0, len(expected.Args)), cmd.Args[0]), expected.Args[1:]...)
 
 	result, err := Capture(cmd)
 	if err != nil {
-		t.Fatalf("failed to capture command: %v", err)
+		return fmt.Errorf("failed to capture command: %w", err)
 	}
 
 	if result.ExitStatus != expected.ExitStatus {
-		t.Errorf("unexpected exit status: got %d, expected %d", result.ExitStatus, expected.ExitStatus)
+		return fmt.Errorf("unexpected exit status: got %d, expected %d", result.ExitStatus, expected.ExitStatus)
 	}
 	if result.Stderr != expected.Stderr {
-		t.Fatalf("unexpected stderr: got %q, expected %q", result.Stderr, expected.Stderr)
+		return fmt.Errorf("unexpected stderr: got %q, expected %q", result.Stderr, expected.Stderr)
 	}
 	if result.Stdout != expected.Stdout {
-		t.Fatalf("unexpected stdout: got %q, expected %q", result.Stdout, expected.Stdout)
+		return fmt.Errorf("unexpected stdout: got %q, expected %q", result.Stdout, expected.Stdout)
+	}
+	return nil
+}
+
+// TestCommandAssert executes the given command and asserts that its
+// captured result matches the expectation.
+// cmd.Args and cmd.Stdin are ignored and replaced by expected.Args and expected.Stdin for the execution.
+// Errors are reported to tb.
+func TestCommandAssert(tb testing.TB, cmd *exec.Cmd, expected *CaptureResult) {
+	tb.Helper()
+
+	err := CommandAssert(cmd, expected)
+	if err != nil {
+		tb.Fatal(err)
 	}
 }
