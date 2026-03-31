@@ -1,0 +1,4 @@
+echo -stderr err
+
+-- stderr --
+err

@@ -1,0 +1,3 @@
+echo -exit=42 `-stderr=Exit 42`
+
+-- exit status: 42 --

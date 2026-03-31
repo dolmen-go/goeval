@@ -219,6 +219,7 @@ func (o *tbOutput) Flush() error {
 // TestCommand returns a command to execute the test binary with the given arguments.
 func (m *Main) TestCommand(tb testing.TB, args ...string) *exec.Cmd {
 	tb.Helper()
+
 	var log io.Writer
 	// testing.TB.Output() was added in Go 1.25
 	if tbWithOutput, ok := any(tb).(interface{ Output() io.Writer }); ok {
@@ -231,4 +232,90 @@ func (m *Main) TestCommand(tb testing.TB, args ...string) *exec.Cmd {
 		tb.Cleanup(cleanup)
 	}
 	return cmd
+}
+
+// TestCapture executes the test binary with the given arguments
+// and captures its stdout, stderr and exit status for reproduction.
+// See [Capture] for more details.
+func (m *Main) TestCapture(tb testing.TB, args ...string) *CaptureResult {
+	tb.Helper()
+
+	cmd := m.TestCommand(tb, args...)
+	res, err := Capture(cmd)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return res
+}
+
+// TestLogCapture executes the test binary with the given arguments
+// and logs its captured stdout, stderr and exit status for debugging.
+func (m *Main) TestLogCapture(tb testing.TB, args ...string) {
+	tb.Helper()
+
+	cmd := m.TestCommand(tb, args...)
+	res, err := Capture(cmd)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	var buf strings.Builder
+	res.WriteTo(&buf)
+	tb.Log("\n" + buf.String() + "EOF")
+}
+
+// TestWriteCapture executes the test binary with the given arguments
+// and writes its captured stdout, stderr and exit status to the given path for reproduction.
+// If the file already exists, it is just replayed.
+func (m *Main) TestWriteCapture(tb testing.TB, path string, args ...string) {
+	tb.Helper()
+
+	osPath := path
+	if !filepath.IsAbs(path) {
+		osPath = filepath.FromSlash(path)
+	}
+	_, err := os.Stat(osPath)
+	if os.IsNotExist(err) {
+		tb.Log("Capturing output to create " + path + "...")
+		err := WriteCapture(m.TestCommand(tb, args...), path)
+		if err != nil {
+			tb.Fatal(err)
+		}
+	} else if err != nil {
+		tb.Fatal(err)
+	}
+
+	m.TestAssert(tb, path)
+}
+
+// TestAssert executes the test binary with the given script and asserts
+// that its stdout, stderr and exit status match the expected values.
+func (m *Main) TestAssert(tb testing.TB, path string) {
+	tb.Helper()
+
+	if !filepath.IsAbs(path) {
+		path = filepath.FromSlash(path)
+	}
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		tb.Fatalf("file %s does not exist", path)
+	} else if err != nil {
+		tb.Fatalf("failed to stat file %s: %v", path, err)
+	}
+	defer f.Close()
+
+	var expected *CaptureResult
+	chanErr := make(chan error)
+	go func(chanErr chan<- error) {
+		var err error
+		expected, err = ParseCapture(f)
+		chanErr <- err
+	}(chanErr)
+
+	cmd := m.TestCommand(tb)
+
+	if err := <-chanErr; err != nil {
+		tb.Fatalf("failed to parse capture: %v", err)
+	}
+
+	TestCommandAssert(tb, cmd, expected)
 }
