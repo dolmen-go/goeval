@@ -1,0 +1,2 @@
+golden /dev/null go run ../echo -stdout=OK -stderr=err -exit=2
+
