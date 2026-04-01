@@ -28,10 +28,15 @@ var golden = testexe.Main{
 	Verbose: true,
 }
 
+func TestUsage(t *testing.T) {
+	t.Parallel()
+
+	golden.TestWriteCapture(t, "testdata/usage.golden", "-h")
+}
+
 func TestCapture(t *testing.T) {
 	t.Parallel()
 
-	t.Log(t.TempDir())
 	golden.TestWriteCapture(t, "testdata/golden-echo."+runtime.GOOS+".golden", os.DevNull, "go", "run", "../echo", "-stdout=OK", "-stderr=err", "-exit=2")
 }
 
