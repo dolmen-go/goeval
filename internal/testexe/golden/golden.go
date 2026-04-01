@@ -86,7 +86,7 @@ func replay() {
 
 	if _, err := os.Stat(defaultExe); err == nil {
 		res.Args[0] = defaultExe
-	} else if !os.IsNotExist(err) {
+	} else if os.IsNotExist(err) {
 		c, err := exec.LookPath(res.Args[0])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "lookpath: %v\n", err)
@@ -103,6 +103,7 @@ func replay() {
 	err = testexe.CommandAssert(cmd, res)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "assert: %v\n", err)
+		res.WriteTo(os.Stderr)
 		os.Exit(1)
 	}
 }

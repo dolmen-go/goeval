@@ -18,6 +18,7 @@ package testexe
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -374,7 +375,11 @@ func CommandAssert(cmd *exec.Cmd, expected *CaptureResult) error {
 	}
 
 	if result.ExitStatus != expected.ExitStatus {
-		return fmt.Errorf("unexpected exit status: got %d, expected %d", result.ExitStatus, expected.ExitStatus)
+		err := fmt.Errorf("unexpected exit status: got %d, expected %d", result.ExitStatus, expected.ExitStatus)
+		if result.Stderr != expected.Stderr {
+			err = errors.Join(err, fmt.Errorf("%w\nunexpected stderr: got %q, expected %q", err, result.Stderr, expected.Stderr))
+		}
+		return err
 	}
 	if result.Stderr != expected.Stderr {
 		return fmt.Errorf("unexpected stderr: got %q, expected %q", result.Stderr, expected.Stderr)

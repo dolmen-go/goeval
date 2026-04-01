@@ -1,0 +1,4 @@
+go run github.com/dolmen-go/goeval/internal/testexe/echo -stdout=OK
+
+-- stdout --
+OK
