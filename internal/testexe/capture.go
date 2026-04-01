@@ -30,9 +30,48 @@ import (
 	"testing"
 )
 
-// Capture runs the given command and captures its stdin, stdout, stderr and exit status.
-// The command's Args field is expected to be set to the full command line, with Args[0] being the executable name.
+// CaptureResult represents the result of a captured command execution for regression testing.
+// It includes the command line arguments, environment variables, stdin, stdout, stderr and exit status.
+//
+// The representation format on disk is inspired by [txtar]:
+//
+//	command arg1 arg2
+//
+//	-- env --
+//	ENV_VAR=value
+//	-- stdin --
+//	stdin content
+//	-- exit status: N --
+//	-- stdout --
+//	stdout content
+//	-- stderr --
+//	stderr content
+//
+// All sections are optional except the command line.
+//
+// In the stdin, stdout and stderr sections, if the content does not end with a newline,
+// a "^D" marker is appended to indicate the end of the content.
+//
+// [txtar]: https://pkg.go.dev/golang.org/x/tools/txtar
+type CaptureResult struct {
+	Args  []string
+	Env   []string
+	Stdin string
+
+	ExitStatus int
+	Stdout     string
+	Stderr     string
+}
+
+// Capture runs the given command and captures its stdin, stdout,
+// stderr and exit status.
+//
+// The command's Args field is expected to be set to the full command
+// line, with Args[0] being the executable name.
 // The command's Stdin may point to a reader that will also be captured.
+// The command's Env may be set to a custom environment, which will be
+// captured as well but only the differences with the system environment
+// are recorded).
 func Capture(cmd *exec.Cmd) (*CaptureResult, error) {
 	var stdin, stdout, stderr bytes.Buffer
 	var withStdin bool
@@ -75,17 +114,39 @@ func Capture(cmd *exec.Cmd) (*CaptureResult, error) {
 	cap.Stdout = stdout.String()
 	cap.Stderr = stderr.String()
 
+	sysEnv := make(map[string]string)
+	for _, e := range os.Environ() {
+		k, v, ok := strings.Cut(e, "=")
+		if !ok {
+			continue
+		}
+		sysEnv[k] = v
+	}
+	// Record only the differences between the command's environment and the system environment
+	for _, e := range cmd.Env {
+		k, v, ok := strings.Cut(e, "=")
+		if !ok || v == sysEnv[k] {
+			continue
+		}
+		if runtime.GOOS == "windows" && k == "SYSTEMROOT" {
+			// Ignore SYSTEMROOT, which is always set on Windows and may differ between test runs.
+			continue
+		}
+		override := false
+		for i, e2 := range cap.Env {
+			if strings.HasPrefix(e2, k+"=") {
+				cap.Env[i] = e
+				override = true
+				break
+			}
+		}
+		if !override {
+			cap.Env = append(cap.Env, e)
+		}
+	}
+	slices.Sort(cap.Env)
+
 	return &cap, nil
-}
-
-// CaptureResult represents the result of a captured command execution for regression testing.
-type CaptureResult struct {
-	Args  []string
-	Stdin string
-
-	ExitStatus int
-	Stdout     string
-	Stderr     string
 }
 
 func writeStream(w io.Writer, title string, content string) (n int64, err error) {
@@ -153,6 +214,21 @@ func (r *CaptureResult) WriteTo(output io.Writer) (n int64, err error) {
 	n += int64(nn)
 	if err != nil {
 		return
+	}
+	if len(r.Env) > 0 {
+		nn, err = fmt.Fprintln(output, "-- env --")
+		n += int64(nn)
+		if err != nil {
+			return
+		}
+		slices.Sort(r.Env)
+		for _, e := range r.Env {
+			nn, err = fmt.Fprintln(output, e)
+			n += int64(nn)
+			if err != nil {
+				return
+			}
+		}
 	}
 	nnn, err := writeStream(output, "stdin", r.Stdin)
 	n += nnn
@@ -253,6 +329,15 @@ func ParseCapture(r io.Reader) (*CaptureResult, error) {
 		case "-- stderr --":
 			result.Stderr, lines = readStream(lines[i+1:])
 			i = 0
+		case "-- env --":
+			var env []string
+			i++
+			for i < len(lines) && !strings.HasPrefix(lines[i], "-- ") {
+				env = append(env, lines[i])
+				i++
+			}
+			slices.Sort(env)
+			result.Env = env
 		default:
 			const prefix = "-- exit status: "
 			if strings.HasPrefix(lines[i], prefix) {
@@ -274,6 +359,12 @@ func ParseCapture(r io.Reader) (*CaptureResult, error) {
 // captured result matches the expectation.
 // cmd.Args and cmd.Stdin are ignored and replaced by expected.Args and expected.Stdin for the execution.
 func CommandAssert(cmd *exec.Cmd, expected *CaptureResult) error {
+	if len(expected.Env) > 0 {
+		if cmd.Env == nil {
+			cmd.Env = os.Environ()
+		}
+		cmd.Env = append(cmd.Env, expected.Env...)
+	}
 	cmd.Stdin = strings.NewReader(expected.Stdin)
 	cmd.Args = append(append(make([]string, 0, len(expected.Args)), cmd.Args[0]), expected.Args[1:]...)
 
