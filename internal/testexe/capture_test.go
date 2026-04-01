@@ -18,7 +18,9 @@ package testexe_test
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dolmen-go/goeval/internal/testexe"
@@ -64,4 +66,60 @@ func TestWriteCaptureStderr(t *testing.T) {
 func TestWriteCaptureExit(t *testing.T) {
 	t.Parallel()
 	echo.TestWriteCapture(t, "echo/testdata/echo_exit42.golden", "-exit=42", "-stderr=Exit 42")
+}
+
+func TestCaptureEnv(t *testing.T) {
+	t.Parallel()
+
+	const (
+		envVar1  = "TEST_CAPTURE_ENV_VAR1"
+		envVar2  = "TEST_CAPTURE_ENV_VAR2"
+		envValue = "42"
+	)
+
+	goldenPath := filepath.Clean(filepath.Join(t.TempDir(), t.Name()+".golden"))
+
+	cmdArgs := []string{"-stdout=hello"}
+	cmd := echo.TestCommand(t, cmdArgs...)
+
+	// Append env vars in reverse order to check that they are sorted in the capture result.
+	cmd.Env = append(os.Environ(), envVar2+"="+envValue, envVar1+"="+envValue)
+
+	err := testexe.WriteCapture(cmd, goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(goldenPath)
+
+	content, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("\n" + string(content))
+	cap, err := testexe.ParseCapture(bytes.NewReader(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cap.Env) != 2 || cap.Env[0] != envVar1+"="+envValue || cap.Env[1] != envVar2+"="+envValue {
+		t.Fatal("env mismatch: " + strings.Join(cap.Env, ", "))
+	}
+
+	testexe.TestCommandAssert(t, echo.TestCommand(t, cmdArgs...), cap)
+}
+
+func TestGoldenEnv(t *testing.T) {
+	t.Parallel()
+
+	const golden = "echo/testdata/echo_env.golden"
+	/*
+		// Initial creation of the golden file:
+		cmd := echo.TestCommand(t, "-stdout=OK")
+		cmd.Env = append(os.Environ(), "TEST_CAPTURE_ENV_VAR2=42", "TEST_CAPTURE_ENV_VAR1=42")
+		err := testexe.WriteCapture(cmd, golden)
+		if err != nil {
+			t.Fatal(err)
+		}
+	*/
+
+	echo.TestAssert(t, golden)
 }

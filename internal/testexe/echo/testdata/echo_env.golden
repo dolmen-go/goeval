@@ -1,0 +1,7 @@
+echo -stdout=OK
+
+-- env --
+TEST_CAPTURE_ENV_VAR1=42
+TEST_CAPTURE_ENV_VAR2=42
+-- stdout --
+OK
