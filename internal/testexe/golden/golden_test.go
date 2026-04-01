@@ -37,7 +37,7 @@ func TestUsage(t *testing.T) {
 func TestCapture(t *testing.T) {
 	t.Parallel()
 
-	golden.TestWriteCapture(t, "testdata/golden-echo."+runtime.GOOS+".golden", os.DevNull, "go", "run", "../echo", "-stdout=OK", "-stderr=err", "-exit=2")
+	golden.TestWriteCapture(t, "testdata/capture."+runtime.GOOS+".golden", os.DevNull, "go", "run", "../echo", "-stdout=OK", "-stderr=err", "-exit=2")
 }
 
 func TestReplay(t *testing.T) {
