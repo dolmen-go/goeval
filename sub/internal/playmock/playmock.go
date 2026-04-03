@@ -45,7 +45,9 @@ type ShareResponse struct {
 }
 
 // Run launches an HTTP server mocking the Go Playground.
-func (s *Server) Run(ctx context.Context) (string, error) {
+//
+// The returned shutdown function must be called to shutdown the server.
+func (s *Server) Run(ctx context.Context) (u string, cleanup func(), _ error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /compile", func(w http.ResponseWriter, r *http.Request) {
@@ -107,17 +109,35 @@ func (s *Server) Run(ctx context.Context) (string, error) {
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	srv := &http.Server{Handler: mux}
 
+	shutdown := func() {
+		srv.Shutdown(context.Background())
+	}
+
 	go func() {
 		<-ctx.Done()
-		srv.Shutdown(context.Background())
+		shutdown()
 	}()
 
 	go srv.Serve(l)
 
-	return fmt.Sprintf("http://%s", l.Addr().String()), nil
+	return fmt.Sprintf("http://%s", l.Addr().String()), shutdown, nil
+}
+
+func (s *Server) TestRun(t interface {
+	Context() context.Context
+	Fatalf(string, ...interface{})
+	Cleanup(func())
+}) string {
+	u, shutdown, err := s.Run(t.Context())
+	if err != nil {
+		t.Fatalf("failed to run server: %v", err)
+		return "" // unreachable
+	}
+	t.Cleanup(shutdown)
+	return u
 }

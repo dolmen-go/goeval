@@ -11,8 +11,6 @@ import (
 )
 
 func TestServerCompile(t *testing.T) {
-	ctx := t.Context()
-
 	expectedBody := "package main\nimport \"fmt\"\nfunc main() {\n  fmt.Println(\"Hello, world!\")\n}\n"
 	expectedResp := &CompileResponse{
 		Errors: "",
@@ -33,10 +31,7 @@ func TestServerCompile(t *testing.T) {
 		},
 	}
 
-	urlStr, err := srv.Run(ctx)
-	if err != nil {
-		t.Fatalf("failed to run server: %v", err)
-	}
+	urlStr := srv.TestRun(t)
 
 	checkResponse := func(t *testing.T, resp *http.Response) {
 		t.Helper()
@@ -99,8 +94,6 @@ func TestServerCompile(t *testing.T) {
 }
 
 func TestServerShare(t *testing.T) {
-	ctx := t.Context()
-
 	expectedBody := "package main"
 	expectedID := "abcdef"
 
@@ -113,10 +106,7 @@ func TestServerShare(t *testing.T) {
 		},
 	}
 
-	urlStr, err := srv.Run(ctx)
-	if err != nil {
-		t.Fatalf("failed to run server: %v", err)
-	}
+	urlStr := srv.TestRun(t)
 
 	resp, err := http.Post(urlStr+"/share", "text/plain", strings.NewReader(expectedBody))
 	if err != nil {
@@ -135,13 +125,8 @@ func TestServerShare(t *testing.T) {
 }
 
 func TestServerNotImplemented(t *testing.T) {
-	ctx := t.Context()
-
 	srv := &Server{}
-	urlStr, err := srv.Run(ctx)
-	if err != nil {
-		t.Fatalf("failed to run server: %v", err)
-	}
+	urlStr := srv.TestRun(t)
 
 	resp, _ := http.Post(urlStr+"/compile", "application/json", strings.NewReader("{}"))
 	if resp.StatusCode != http.StatusNotImplemented {
