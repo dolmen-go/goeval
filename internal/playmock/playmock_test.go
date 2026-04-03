@@ -1,4 +1,4 @@
-package playmock
+package playmock_test
 
 import (
 	"bytes"
@@ -8,15 +8,17 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/dolmen-go/goeval/internal/playmock"
 )
 
 func TestServerCompile(t *testing.T) {
 	t.Parallel()
 
 	expectedBody := "package main\nimport \"fmt\"\nfunc main() {\n  fmt.Println(\"Hello, world!\")\n}\n"
-	expectedResp := &CompileResponse{
+	expectedResp := &playmock.CompileResponse{
 		Errors: "",
-		Events: []CompileEvent{
+		Events: []playmock.CompileEvent{
 			{Message: "Hello, world!\n", Kind: "stdout", Delay: 0},
 		},
 		Status:      0,
@@ -24,8 +26,8 @@ func TestServerCompile(t *testing.T) {
 		TestsFailed: 0,
 	}
 
-	srv := &Server{
-		Compile: func(req *CompileRequest) (*CompileResponse, error) {
+	srv := &playmock.Server{
+		Compile: func(req *playmock.CompileRequest) (*playmock.CompileResponse, error) {
 			if req.Body != expectedBody {
 				t.Errorf("unexpected body: got %q, want %q", req.Body, expectedBody)
 			}
@@ -41,7 +43,7 @@ func TestServerCompile(t *testing.T) {
 			t.Errorf("expected status 200, got %d", resp.StatusCode)
 		}
 
-		var gotResp CompileResponse
+		var gotResp playmock.CompileResponse
 		if err := json.NewDecoder(resp.Body).Decode(&gotResp); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
@@ -72,7 +74,7 @@ func TestServerCompile(t *testing.T) {
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 
-		reqBody, _ := json.Marshal(CompileRequest{
+		reqBody, _ := json.Marshal(playmock.CompileRequest{
 			Body: expectedBody,
 		})
 		resp, err := http.Post(urlStr+"/compile", "application/json", bytes.NewReader(reqBody))
@@ -105,12 +107,12 @@ func TestServerShare(t *testing.T) {
 	expectedBody := "package main"
 	expectedID := "abcdef"
 
-	srv := &Server{
-		Share: func(req *ShareRequest) (*ShareResponse, error) {
+	srv := &playmock.Server{
+		Share: func(req *playmock.ShareRequest) (*playmock.ShareResponse, error) {
 			if req.Body != expectedBody {
 				t.Errorf("unexpected body: got %q, want %q", req.Body, expectedBody)
 			}
-			return &ShareResponse{ID: expectedID}, nil
+			return &playmock.ShareResponse{ID: expectedID}, nil
 		},
 	}
 
@@ -133,7 +135,7 @@ func TestServerShare(t *testing.T) {
 }
 
 func TestServerNotImplemented(t *testing.T) {
-	srv := &Server{}
+	srv := &playmock.Server{}
 	urlStr := srv.TestRun(t)
 
 	resp, _ := http.Post(urlStr+"/compile", "application/json", strings.NewReader("{}"))
