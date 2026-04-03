@@ -2,7 +2,6 @@ package playmock
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,8 +11,7 @@ import (
 )
 
 func TestServerCompileJSON(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	expectedBody := "package main\nfunc main() { println(\"hello\") }"
 	expectedResp := &CompileResponse{
@@ -64,8 +62,7 @@ func TestServerCompileJSON(t *testing.T) {
 }
 
 func TestServerCompileForm(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	expectedBody := "package main\nfunc main() { println(\"hello\") }"
 	srv := &Server{
@@ -101,8 +98,7 @@ func TestServerCompileForm(t *testing.T) {
 }
 
 func TestServerShare(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	expectedBody := "package main"
 	expectedID := "abcdef"
@@ -138,8 +134,7 @@ func TestServerShare(t *testing.T) {
 }
 
 func TestServerNotImplemented(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := &Server{}
 	urlStr, err := srv.Run(ctx)
