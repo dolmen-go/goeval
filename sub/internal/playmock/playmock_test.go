@@ -13,20 +13,21 @@ import (
 func TestServerCompileJSON(t *testing.T) {
 	ctx := t.Context()
 
-	expectedBody := "package main\nfunc main() { println(\"hello\") }"
+	expectedBody := "package main\nimport \"fmt\"\nfunc main() {\n  fmt.Println(\"Hello, world!\")\n}\n"
 	expectedResp := &CompileResponse{
+		Errors: "",
 		Events: []CompileEvent{
-			{Message: "hello\n", Kind: "stdout", Delay: 0},
+			{Message: "Hello, world!\n", Kind: "stdout", Delay: 0},
 		},
+		Status:      0,
+		IsTest:      false,
+		TestsFailed: 0,
 	}
 
 	srv := &Server{
 		Compile: func(req *CompileRequest) (*CompileResponse, error) {
 			if req.Body != expectedBody {
 				t.Errorf("unexpected body: got %q, want %q", req.Body, expectedBody)
-			}
-			if !req.WithVet {
-				t.Errorf("expected WithVet to be true")
 			}
 			return expectedResp, nil
 		},
@@ -38,8 +39,7 @@ func TestServerCompileJSON(t *testing.T) {
 	}
 
 	reqBody, _ := json.Marshal(CompileRequest{
-		Body:    expectedBody,
-		WithVet: true,
+		Body: expectedBody,
 	})
 	resp, err := http.Post(urlStr+"/compile", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
@@ -56,8 +56,20 @@ func TestServerCompileJSON(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if len(gotResp.Events) != 1 || gotResp.Events[0].Message != "hello\n" {
-		t.Errorf("unexpected response: %+v", gotResp)
+	if gotResp.Errors != expectedResp.Errors {
+		t.Errorf("Errors: got %q, want %q", gotResp.Errors, expectedResp.Errors)
+	}
+	if len(gotResp.Events) != len(expectedResp.Events) || gotResp.Events[0].Message != expectedResp.Events[0].Message {
+		t.Errorf("Events: got %+v, want %+v", gotResp.Events, expectedResp.Events)
+	}
+	if gotResp.Status != expectedResp.Status {
+		t.Errorf("Status: got %d, want %d", gotResp.Status, expectedResp.Status)
+	}
+	if gotResp.IsTest != expectedResp.IsTest {
+		t.Errorf("IsTest: got %v, want %v", gotResp.IsTest, expectedResp.IsTest)
+	}
+	if gotResp.TestsFailed != expectedResp.TestsFailed {
+		t.Errorf("TestsFailed: got %d, want %d", gotResp.TestsFailed, expectedResp.TestsFailed)
 	}
 }
 
