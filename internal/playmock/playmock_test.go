@@ -11,6 +11,8 @@ import (
 )
 
 func TestServerCompile(t *testing.T) {
+	t.Parallel()
+
 	expectedBody := "package main\nimport \"fmt\"\nfunc main() {\n  fmt.Println(\"Hello, world!\")\n}\n"
 	expectedResp := &CompileResponse{
 		Errors: "",
@@ -68,6 +70,8 @@ func TestServerCompile(t *testing.T) {
 	}
 
 	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+
 		reqBody, _ := json.Marshal(CompileRequest{
 			Body: expectedBody,
 		})
@@ -80,6 +84,8 @@ func TestServerCompile(t *testing.T) {
 	})
 
 	t.Run("Form", func(t *testing.T) {
+		t.Parallel()
+
 		form := url.Values{}
 		form.Add("body", expectedBody)
 		form.Add("withVet", "false")
@@ -94,6 +100,8 @@ func TestServerCompile(t *testing.T) {
 }
 
 func TestServerShare(t *testing.T) {
+	t.Parallel()
+
 	expectedBody := "package main"
 	expectedID := "abcdef"
 
