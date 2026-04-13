@@ -108,6 +108,8 @@ go1.24.4 X:rangefunc
 
 ## ⬇️ Install
 
+### From source
+
 ```console
 $ go install github.com/dolmen-go/goeval@latest
 ```
@@ -118,11 +120,32 @@ Install with online features (`-play`, `-share`) disabled:
 $ go install -tags=goeval.offline github.com/dolmen-go/goeval@latest
 ```
 
-
-## 🗑️ Uninstall
+#### 🗑️ Uninstall
 
 ```console
 $ go clean -i github.com/dolmen-go/goeval
+```
+
+
+### Install as a [tool](https://go.dev/doc/modules/managing-dependencies#tools) for your Go project
+
+Install as a versionned [tool] in a Go 1.24+ module:
+```console
+$ go get -tool github.com/dolmen-go/goeval
+```
+
+Use `goeval` through `go tool`:
+```console
+$ go tool goeval 'fmt.Println("OK")'
+OK
+```
+
+
+### Via [mise-en-place](https://mise.jdx.dev)
+
+```
+$ mise install go:github.com/dolmen-go/goeval
+$ mise use -g go:github.com/dolmen-go/goeval
 ```
 
 ## ❓ How does it work?
