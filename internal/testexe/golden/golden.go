@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/dolmen-go/goeval/internal/testexe"
@@ -43,9 +44,9 @@ func main() {
 	flag.Parse()
 
 	if flag.NArg() == 1 {
-		replay()
+		replay(flag.CommandLine.Args())
 	} else {
-		capture()
+		capture(flag.CommandLine.Args())
 	}
 }
 
@@ -65,8 +66,14 @@ func usage() {
 	os.Exit(1)
 }
 
-func replay() {
-	f, err := os.Open(os.Args[1])
+func fatal(status int, message string, args ...any) {
+	cmd := strings.ReplaceAll(filepath.Base(os.Args[0]), "%", "%%")
+	fmt.Fprintf(os.Stderr, cmd+": "+message+"\n", args...)
+	os.Exit(status)
+}
+
+func replay(args []string) {
+	f, err := os.Open(args[0])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "open: %v\n", err)
 		os.Exit(3)
@@ -90,13 +97,11 @@ func replay() {
 	} else if os.IsNotExist(err) {
 		c, err := exec.LookPath(res.Args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "lookpath: %v\n", err)
-			os.Exit(5)
+			fatal(5, "lookpath: %v", err)
 		}
 		res.Args[0] = c
 	} else {
-		fmt.Fprintf(os.Stderr, "executable not found: %s\n", res.Args[0])
-		os.Exit(5)
+		fatal(5, "executable not found: %s", res.Args[0])
 	}
 
 	cmd := exec.Command(res.Args[0], res.Args[1:]...)
@@ -109,23 +114,21 @@ func replay() {
 	}
 }
 
-func capture() {
-	fi, err := os.Stat(os.Args[1])
+func capture(args []string) {
+	fi, err := os.Stat(args[0])
 	if err == nil {
 		ftype := fi.Mode().Type()
 		// Disallow overriding an existing golden file.
 		// But allow to send to an irregular file such as a TTY or /dev/null.
 		if ftype.IsRegular() {
-			fmt.Fprintf(os.Stderr, "%s: file exists\n", os.Args[1])
-			os.Exit(2)
+			fatal(2, "%s: file exists", args[0])
 		}
 	} else if !os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", os.Args[1], err)
-		os.Exit(2)
+		fatal(2, "%v", err)
 	}
 
-	// fmt.Println("Launching:", os.Args[2:])
-	cmd := exec.Command(os.Args[2], os.Args[3:]...)
+	// fmt.Println("Launching:", args[1:])
+	cmd := exec.Command(args[1], args[2:]...)
 	if *withStdin {
 		cmd.Stdin = os.Stdin
 	} else {
@@ -162,19 +165,17 @@ func capture() {
 
 	res, err := testexe.Capture(cmd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "capture: %v\n", err)
-		os.Exit(3)
+		fatal(2, "capture: %v", err)
 	}
+	// fmt.Println("Done.")
 
-	f, err := os.Create(os.Args[1])
+	f, err := os.Create(args[0])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "create: %v\n", err)
-		os.Exit(4)
+		fatal(4, "create: %v", err)
 	}
 	defer f.Close()
 
 	if _, err := res.WriteTo(f); err != nil {
-		fmt.Fprintf(os.Stderr, "write: %v\n", err)
-		os.Exit(5)
+		fatal(5, "write: %v", err)
 	}
 }
