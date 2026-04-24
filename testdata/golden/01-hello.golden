@@ -1,0 +1,4 @@
+goeval `fmt.Println("Hello!")`
+
+-- stdout --
+Hello!

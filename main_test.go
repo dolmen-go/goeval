@@ -18,11 +18,15 @@ package main_test
 
 import (
 	"bytes"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+
+	"github.com/dolmen-go/goeval/internal/testexe"
 )
 
 func goeval(args ...string) {
@@ -154,4 +158,38 @@ func TestBuild(t *testing.T) {
 	if string(out) != "toto" {
 		t.Errorf(`output: got %q, expected "toto"`, out)
 	}
+}
+
+func TestGolden(t *testing.T) {
+	t.Parallel()
+
+	var goevalMain testexe.Main
+	// goevalMain.Verbose = true
+	goevalMain.BuildVCS = true
+	goevalMain.UsedBy(t)
+
+	goldenPath := "./testdata/golden"
+	goldenFilePath, err := filepath.Abs(filepath.FromSlash(goldenPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	goldenRoot, err := os.OpenRoot(goldenFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fs.WalkDir(goldenRoot.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".golden") {
+			return nil
+		}
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			goevalMain.TestAssert(t, filepath.Join(goldenFilePath, filepath.FromSlash(path)))
+		})
+		return nil
+	})
 }
