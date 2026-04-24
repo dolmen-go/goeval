@@ -306,9 +306,16 @@ func (m *Main) TestAssert(tb testing.TB, path string) {
 	var expected *CaptureResult
 	chanErr := make(chan error)
 	go func(chanErr chan<- error) {
-		var err error
-		expected, err = ParseCapture(f)
-		chanErr <- err
+		defer close(chanErr)
+		chanErr <- func() (err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					err = fmt.Errorf("panic: %v", r)
+				}
+			}()
+			expected, err = ParseCapture(f)
+			return
+		}()
 	}(chanErr)
 
 	cmd := m.TestCommand(tb)
