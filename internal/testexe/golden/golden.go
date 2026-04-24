@@ -18,32 +18,31 @@
 package main
 
 import (
+	"bytes"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
-	"strings"
+	"time"
 
 	"github.com/dolmen-go/goeval/internal/testexe"
+)
+
+var (
+	withStdin = flag.Bool("i", false, "capture stdin")
 )
 
 func main() {
 	if len(os.Args) <= 1 {
 		usage()
 	}
-	// No declared flags for now, but be ready to extend by disallowing
-	// a direct golden file whose name starts with '-' (escape with the usual '--')
-	if strings.HasPrefix(os.Args[1], "-") {
-		if os.Args[1] != "--" {
-			usage()
-		}
-		// --
-		os.Args = slices.Delete(os.Args, 1, 2)
-	}
+	flag.Usage = usage
+	flag.Parse()
 
-	if len(os.Args) == 2 {
+	if flag.NArg() == 1 {
 		replay()
 	} else {
 		capture()
@@ -52,13 +51,15 @@ func main() {
 
 func usage() {
 	fmt.Fprintf(os.Stderr, ""+
-		"usage: %s <out.golden> <cmd> [<args>...]\n"+
-		"       %[1]s <in.golden>\n"+
+		"usage: %s"+" [-i] <out.golden> <cmd> [<args>...]\n"+
+		"       %[1]s      <in.golden>\n"+
 		"\n"+
 		"With 2 or more arguments, %[1]s captures the output of the given command and\n"+
 		"writes it to the given golden file.\n"+
 		"With exactly 1 argument, %[1]s replays the given golden file and asserts that\n"+
-		"the command's output matches the captured one.\n",
+		"the command's output matches the captured one.\n"+
+		"\n"+
+		"  -i    capture stdin ([i]nteractive)\n",
 		filepath.Base(os.Args[0]))
 
 	os.Exit(1)
@@ -123,8 +124,41 @@ func capture() {
 		os.Exit(2)
 	}
 
+	// fmt.Println("Launching:", os.Args[2:])
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
-	cmd.Stdin = os.Stdin
+	if *withStdin {
+		cmd.Stdin = os.Stdin
+	} else {
+		// Check if data is available on Stdin
+
+		type R struct {
+			buf []byte
+			err error
+		}
+		ch := make(chan *R)
+		go func() {
+			b := []byte{0} // 1-byte buffer
+			n, err := os.Stdin.Read(b)
+			ch <- &R{buf: b[:n], err: err}
+		}()
+
+		select {
+		case res := <-ch:
+			if len(res.buf) > 0 {
+				cmd.Stdin = bytes.NewReader(res.buf)
+				if res.err == nil {
+					cmd.Stdin = io.MultiReader(cmd.Stdin, os.Stdin)
+				}
+			}
+		case <-time.After(10 * time.Millisecond):
+			// Do not capture stdin
+
+			// Close stdin to force the Read to fail, and so release the channel and goroutine.
+			// Note: the next open will reuse fd 0.
+			os.Stdin.Close()
+			<-ch
+		}
+	}
 
 	res, err := testexe.Capture(cmd)
 	if err != nil {
