@@ -192,21 +192,8 @@ func readStream(lines []string) (content string, remaining []string) {
 // WriteTo writes the capture result to the given writer in a format
 // that can be parsed by [ParseCapture].
 func (r *CaptureResult) WriteTo(output io.Writer) (n int64, err error) {
-	args := slices.Clone(r.Args)
-	for i, a := range args {
-		ascii := strconv.QuoteToASCII(a)
-		if len(ascii) == len(a)+2 && !strings.ContainsAny(a, "\"`' \t\r\n") {
-			continue
-		}
-		if strconv.CanBackquote(a) {
-			a = "`" + a + "`"
-		} else {
-			a = strconv.QuoteToGraphic(a)
-		}
-		args[i] = a
-	}
 
-	nn, err := fmt.Fprintln(output, strings.Join(args, " "))
+	nn, err := fmt.Fprintln(output, formatWords(r.Args))
 	n += int64(nn)
 	if err != nil {
 		return
@@ -302,18 +289,10 @@ func ParseCapture(r io.Reader) (*CaptureResult, error) {
 
 	var result CaptureResult
 
-	args := strings.Fields(lines[i])
-	for i, a := range args {
-		if len(a) >= 2 && (a[0] == '"' || a[0] == '`') && a[len(a)-1] == a[0] {
-			unquoted, err := strconv.Unquote(a)
-			if err != nil {
-				return nil, fmt.Errorf("invalid capture: invalid argument %q: %w", a, err)
-			}
-			a = unquoted
-		}
-		args[i] = a
+	result.Args, err = splitWords(lines[i])
+	if err != nil {
+		return nil, fmt.Errorf("invalid capture: invalid command at line %d: %w", i+1, err)
 	}
-	result.Args = args
 
 	i++
 	for i < len(lines) && (lines[i] == "" || strings.HasPrefix(lines[i], "#")) {
