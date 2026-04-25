@@ -109,10 +109,7 @@ func replay(args []string) {
 	cmd := exec.Command(res.Args[0], res.Args[1:]...)
 
 	if *withUpdate {
-		if res.Stdin != "" {
-			cmd.Stdin = strings.NewReader(res.Stdin)
-		}
-
+		res.PrepareCmd(cmd)
 		captureCmd(cmd, args[0])
 		return
 	}
