@@ -335,18 +335,38 @@ func ParseCapture(r io.Reader) (*CaptureResult, error) {
 	return &result, nil
 }
 
-// CommandAssert executes the given command and asserts that its
-// captured result matches the expectation.
-// cmd.Args and cmd.Stdin are ignored and replaced by expected.Args and expected.Stdin for the execution.
-func CommandAssert(cmd *exec.Cmd, expected *CaptureResult) error {
-	if len(expected.Env) > 0 {
+func (r *CaptureResult) Command() *exec.Cmd {
+	var cmd exec.Cmd
+	r.PrepareCmd(&cmd)
+	return &cmd
+}
+
+// PrepareCmd applies the capture to an [exec.Cmd] in order to replay it.
+// cmd.Args[1:], cmd.Env and cmd.Stdin are applied.
+func (r *CaptureResult) PrepareCmd(cmd *exec.Cmd) {
+	if len(r.Env) > 0 {
 		if cmd.Env == nil {
 			cmd.Env = os.Environ()
 		}
-		cmd.Env = append(cmd.Env, expected.Env...)
+		cmd.Env = append(cmd.Env, r.Env...)
 	}
-	cmd.Stdin = strings.NewReader(expected.Stdin)
-	cmd.Args = append(append(make([]string, 0, len(expected.Args)), cmd.Args[0]), expected.Args[1:]...)
+	cmd.Stdin = strings.NewReader(r.Stdin)
+	if cmd.Args == nil {
+		cmd.Args = make([]string, len(r.Args))
+	}
+	if len(cmd.Args) == 0 {
+		cmd.Args = append(cmd.Args, r.Args...)
+	} else { // Preserve cmd.Args[0]
+		cmd.Args = append(cmd.Args[:1], r.Args[1:]...)
+	}
+}
+
+// CommandAssert executes the given command and asserts that its
+// captured result matches the expectation.
+// cmd.Args[1:] and cmd.Stdin are ignored and replaced by expected.Args
+// and expected.Stdin for the execution.
+func CommandAssert(cmd *exec.Cmd, expected *CaptureResult) error {
+	expected.PrepareCmd(cmd)
 
 	result, err := Capture(cmd)
 	if err != nil {
