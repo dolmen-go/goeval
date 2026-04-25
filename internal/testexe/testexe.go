@@ -47,6 +47,7 @@ type Main struct {
 	BuildArgs   []string
 	BuildTags   []string
 	BuildEnv    []string
+	BuildVCS    bool
 	Verbose     bool
 
 	running  atomic.Int32
@@ -148,8 +149,15 @@ func (m *Main) build(log io.Writer) {
 		"build",
 		"-o", m.exePath,
 		// "-x",
-		"-buildvcs=false",
 		"-trimpath",
+	}
+
+	// Enforce an explicit choice of -buildvcs
+	// The default is false, for faster builds
+	if m.BuildVCS {
+		argsBuild = append(argsBuild, "-buildvcs=true")
+	} else {
+		argsBuild = append(argsBuild, "-buildvcs=false")
 	}
 
 	if len(m.BuildTags) > 0 {
