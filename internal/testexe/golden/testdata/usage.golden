@@ -3,7 +3,7 @@ golden -h
 -- exit status: 1 --
 -- stderr --
 usage: golden [-i] <out.golden> <cmd> [<args>...]
-       golden      <in.golden>
+       golden [-u] <in.golden>
 
 With 2 or more arguments, golden captures the output of the given command and
 writes it to the given golden file.
@@ -11,3 +11,4 @@ With exactly 1 argument, golden replays the given golden file and asserts that
 the command's output matches the captured one.
 
   -i    capture stdin ([i]nteractive)
+  -u    update: replay and overwrite with the new output

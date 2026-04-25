@@ -33,7 +33,8 @@ import (
 )
 
 var (
-	withStdin = flag.Bool("i", false, "capture stdin")
+	withStdin  = flag.Bool("i", false, "capture stdin ([i]nteractive)")
+	withUpdate = flag.Bool("u", false, "update: replay and overwrite with the new output")
 )
 
 func main() {
@@ -53,14 +54,15 @@ func main() {
 func usage() {
 	fmt.Fprintf(os.Stderr, ""+
 		"usage: %s"+" [-i] <out.golden> <cmd> [<args>...]\n"+
-		"       %[1]s      <in.golden>\n"+
+		"       %[1]s [-u] <in.golden>\n"+
 		"\n"+
 		"With 2 or more arguments, %[1]s captures the output of the given command and\n"+
 		"writes it to the given golden file.\n"+
 		"With exactly 1 argument, %[1]s replays the given golden file and asserts that\n"+
 		"the command's output matches the captured one.\n"+
 		"\n"+
-		"  -i    capture stdin ([i]nteractive)\n",
+		"  -i    capture stdin ([i]nteractive)\n"+
+		"  -u    update: replay and overwrite with the new output\n",
 		filepath.Base(os.Args[0]))
 
 	os.Exit(1)
@@ -105,6 +107,15 @@ func replay(args []string) {
 	}
 
 	cmd := exec.Command(res.Args[0], res.Args[1:]...)
+
+	if *withUpdate {
+		if res.Stdin != "" {
+			cmd.Stdin = strings.NewReader(res.Stdin)
+		}
+
+		captureCmd(cmd, args[0])
+		return
+	}
 
 	err = testexe.CommandAssert(cmd, res)
 	if err != nil {
@@ -163,13 +174,17 @@ func capture(args []string) {
 		}
 	}
 
+	captureCmd(cmd, args[0])
+}
+
+func captureCmd(cmd *exec.Cmd, out string) {
 	res, err := testexe.Capture(cmd)
 	if err != nil {
 		fatal(2, "capture: %v", err)
 	}
 	// fmt.Println("Done.")
 
-	f, err := os.Create(args[0])
+	f, err := os.Create(out)
 	if err != nil {
 		fatal(4, "create: %v", err)
 	}
