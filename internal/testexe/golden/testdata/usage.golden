@@ -2,7 +2,7 @@ golden -h
 
 -- exit status: 1 --
 -- stderr --
-usage: golden [-i] <out.golden> <cmd> [<args>...]
+usage: golden [-D <name>[=<value>] ...] [-i] <out.golden> <cmd> [<args>...]
        golden [-u] <in.golden>
 
 With 2 or more arguments, golden captures the output of the given command and
@@ -11,4 +11,6 @@ With exactly 1 argument, golden replays the given golden file and asserts that
 the command's output matches the captured one.
 
   -i    capture stdin ([i]nteractive)
+  -D    capture environment variable `<name>[=<value>]`
+        If just a name is given, the value is taken from the environment.
   -u    update: replay and overwrite with the new output

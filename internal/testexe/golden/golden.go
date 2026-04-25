@@ -35,9 +35,30 @@ import (
 var (
 	withStdin  = flag.Bool("i", false, "capture stdin ([i]nteractive)")
 	withUpdate = flag.Bool("u", false, "update: replay and overwrite with the new output")
+
+	envVars []string // -D
 )
 
 func main() {
+	flag.Func("D", "capture environnment variable (`<name>[=<value>]`)", func(env string) error {
+		// If value is not given, take it from the environment
+		if strings.IndexByte(env, '=') == -1 {
+			env += "=" + os.Getenv(env)
+		}
+		// Replace a previous variable with the same name
+		if len(envVars) > 0 {
+			prefix := env[:strings.IndexByte(env, '=')+1]
+			for i := range envVars {
+				if strings.HasPrefix(envVars[i], prefix) {
+					envVars[i] = env
+					return nil
+				}
+			}
+		}
+		envVars = append(envVars, env)
+		return nil
+	})
+
 	if len(os.Args) <= 1 {
 		usage()
 	}
@@ -53,7 +74,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintf(os.Stderr, ""+
-		"usage: %s"+" [-i] <out.golden> <cmd> [<args>...]\n"+
+		"usage: %s"+" [-D <name>[=<value>] ...] [-i] <out.golden> <cmd> [<args>...]\n"+
 		"       %[1]s [-u] <in.golden>\n"+
 		"\n"+
 		"With 2 or more arguments, %[1]s captures the output of the given command and\n"+
@@ -62,6 +83,8 @@ func usage() {
 		"the command's output matches the captured one.\n"+
 		"\n"+
 		"  -i    capture stdin ([i]nteractive)\n"+
+		"  -D    capture environment variable `<name>[=<value>]`\n"+
+		"        If just a name is given, the value is taken from the environment.\n"+
 		"  -u    update: replay and overwrite with the new output\n",
 		filepath.Base(os.Args[0]))
 
@@ -147,6 +170,11 @@ func capture(args []string) {
 
 	// fmt.Println("Launching:", args[1:])
 	cmd := exec.Command(args[1], args[2:]...)
+
+	if len(envVars) > 0 {
+		cmd.Env = append(os.Environ(), envVars...)
+	}
+
 	if *withStdin {
 		cmd.Stdin = os.Stdin
 	} else {
@@ -189,6 +217,11 @@ func capture(args []string) {
 		fatal(2, "capture: %v", err)
 	}
 	// fmt.Println("Done.")
+
+	// If a set of environment variables was given, capture just them.
+	if len(envVars) > 0 {
+		res.Env = envVars
+	}
 
 	saveCapture(res, args[0])
 }
