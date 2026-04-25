@@ -110,7 +110,17 @@ func replay(args []string) {
 
 	if *withUpdate {
 		res.PrepareCmd(cmd)
-		captureCmd(cmd, args[0])
+		res2, err := testexe.Capture(cmd)
+		if err != nil {
+			fatal(2, "capture: %v", err)
+		}
+
+		// Be sure that we preserve original inputs
+		res2.Env = res.Env
+		res2.Stdin = res.Stdin
+		// TODO restore comments
+
+		saveCapture(res2, args[0])
 		return
 	}
 
@@ -174,16 +184,16 @@ func capture(args []string) {
 		}
 	}
 
-	captureCmd(cmd, args[0])
-}
-
-func captureCmd(cmd *exec.Cmd, out string) {
 	res, err := testexe.Capture(cmd)
 	if err != nil {
 		fatal(2, "capture: %v", err)
 	}
 	// fmt.Println("Done.")
 
+	saveCapture(res, args[0])
+}
+
+func saveCapture(res *testexe.CaptureResult, out string) {
 	f, err := os.Create(out)
 	if err != nil {
 		fatal(4, "create: %v", err)
