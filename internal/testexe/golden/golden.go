@@ -18,54 +18,87 @@
 package main
 
 import (
+	"bytes"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
+	"time"
 
 	"github.com/dolmen-go/goeval/internal/testexe"
 )
 
+var (
+	withStdin  = flag.Bool("i", false, "capture stdin ([i]nteractive)")
+	withUpdate = flag.Bool("u", false, "update: replay and overwrite with the new output")
+
+	envVars []string // -D
+)
+
 func main() {
+	flag.Func("D", "capture environnment variable (`<name>[=<value>]`)", func(env string) error {
+		// If value is not given, take it from the environment
+		if strings.IndexByte(env, '=') == -1 {
+			env += "=" + os.Getenv(env)
+		}
+		// Replace a previous variable with the same name
+		if len(envVars) > 0 {
+			prefix := env[:strings.IndexByte(env, '=')+1]
+			for i := range envVars {
+				if strings.HasPrefix(envVars[i], prefix) {
+					envVars[i] = env
+					return nil
+				}
+			}
+		}
+		envVars = append(envVars, env)
+		return nil
+	})
+
 	if len(os.Args) <= 1 {
 		usage()
 	}
-	// No declared flags for now, but be ready to extend by disallowing
-	// a direct golden file whose name starts with '-' (escape with the usual '--')
-	if strings.HasPrefix(os.Args[1], "-") {
-		if os.Args[1] != "--" {
-			usage()
-		}
-		// --
-		os.Args = slices.Delete(os.Args, 1, 2)
-	}
+	flag.Usage = usage
+	flag.Parse()
 
-	if len(os.Args) == 2 {
-		replay()
+	if flag.NArg() == 1 {
+		replay(flag.CommandLine.Args())
 	} else {
-		capture()
+		capture(flag.CommandLine.Args())
 	}
 }
 
 func usage() {
 	fmt.Fprintf(os.Stderr, ""+
-		"usage: %s <out.golden> <cmd> [<args>...]\n"+
-		"       %[1]s <in.golden>\n"+
+		"usage: %s"+" [-D <name>[=<value>] ...] [-i] <out.golden> <cmd> [<args>...]\n"+
+		"       %[1]s [-u] <in.golden>\n"+
 		"\n"+
 		"With 2 or more arguments, %[1]s captures the output of the given command and\n"+
 		"writes it to the given golden file.\n"+
 		"With exactly 1 argument, %[1]s replays the given golden file and asserts that\n"+
-		"the command's output matches the captured one.\n",
+		"the command's output matches the captured one.\n"+
+		"\n"+
+		"  -i    capture stdin ([i]nteractive)\n"+
+		"  -D    capture environment variable `<name>[=<value>]`\n"+
+		"        If just a name is given, the value is taken from the environment.\n"+
+		"  -u    update: replay and overwrite with the new output\n",
 		filepath.Base(os.Args[0]))
 
 	os.Exit(1)
 }
 
-func replay() {
-	f, err := os.Open(os.Args[1])
+func fatal(status int, message string, args ...any) {
+	cmd := strings.ReplaceAll(filepath.Base(os.Args[0]), "%", "%%")
+	fmt.Fprintf(os.Stderr, cmd+": "+message+"\n", args...)
+	os.Exit(status)
+}
+
+func replay(args []string) {
+	f, err := os.Open(args[0])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "open: %v\n", err)
 		os.Exit(3)
@@ -89,16 +122,30 @@ func replay() {
 	} else if os.IsNotExist(err) {
 		c, err := exec.LookPath(res.Args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "lookpath: %v\n", err)
-			os.Exit(5)
+			fatal(5, "lookpath: %v", err)
 		}
 		res.Args[0] = c
 	} else {
-		fmt.Fprintf(os.Stderr, "executable not found: %s\n", res.Args[0])
-		os.Exit(5)
+		fatal(5, "executable not found: %s", res.Args[0])
 	}
 
 	cmd := exec.Command(res.Args[0], res.Args[1:]...)
+
+	if *withUpdate {
+		res.PrepareCmd(cmd)
+		res2, err := testexe.Capture(cmd)
+		if err != nil {
+			fatal(2, "capture: %v", err)
+		}
+
+		// Be sure that we preserve original inputs
+		res2.Env = res.Env
+		res2.Stdin = res.Stdin
+		// TODO restore comments
+
+		saveCapture(res2, args[0])
+		return
+	}
 
 	err = testexe.CommandAssert(cmd, res)
 	if err != nil {
@@ -108,39 +155,93 @@ func replay() {
 	}
 }
 
-func capture() {
-	fi, err := os.Stat(os.Args[1])
-	if err == nil {
-		ftype := fi.Mode().Type()
-		// Disallow overriding an existing golden file.
-		// But allow to send to an irregular file such as a TTY or /dev/null.
-		if ftype.IsRegular() {
-			fmt.Fprintf(os.Stderr, "%s: file exists\n", os.Args[1])
-			os.Exit(2)
+func capture(args []string) {
+	if args[0] != "-" {
+		fi, err := os.Stat(args[0])
+		if err == nil {
+			ftype := fi.Mode().Type()
+			// Disallow overriding an existing golden file.
+			// But allow to send to an irregular file such as a TTY or /dev/null.
+			if ftype.IsRegular() {
+				fatal(2, "%s: file exists", args[0])
+			}
+		} else if !os.IsNotExist(err) {
+			fatal(2, "%v", err)
 		}
-	} else if !os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", os.Args[1], err)
-		os.Exit(2)
 	}
 
-	cmd := exec.Command(os.Args[2], os.Args[3:]...)
-	cmd.Stdin = os.Stdin
+	// fmt.Println("Launching:", args[1:])
+	cmd := exec.Command(args[1], args[2:]...)
+
+	if len(envVars) > 0 {
+		cmd.Env = append(os.Environ(), envVars...)
+	}
+
+	if *withStdin {
+		cmd.Stdin = os.Stdin
+	} else {
+		// Check if data is available on Stdin
+
+		type R struct {
+			buf []byte
+			err error
+		}
+		ch := make(chan *R, 1)
+		go func() {
+			b := []byte{0} // 1-byte buffer
+			n, err := os.Stdin.Read(b)
+			ch <- &R{buf: b[:n], err: err}
+			close(ch)
+		}()
+
+		select {
+		case res := <-ch:
+			if len(res.buf) > 0 {
+				cmd.Stdin = bytes.NewReader(res.buf)
+				if res.err == nil {
+					cmd.Stdin = io.MultiReader(cmd.Stdin, os.Stdin)
+				}
+			}
+		case <-time.After(10 * time.Millisecond):
+			// Do not capture stdin
+
+			// Close stdin to force the Read to fail, and so release the channel and goroutine.
+			// Note: the next open will reuse fd 0.
+			os.Stdin.Close()
+			go func() {
+				<-ch
+			}()
+		}
+	}
 
 	res, err := testexe.Capture(cmd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "capture: %v\n", err)
-		os.Exit(3)
+		fatal(2, "capture: %v", err)
+	}
+	// fmt.Println("Done.")
+
+	// If a set of environment variables was given, capture just them.
+	if len(envVars) > 0 {
+		res.Env = envVars
 	}
 
-	f, err := os.Create(os.Args[1])
+	if args[0] == "-" {
+		if _, err := res.WriteTo(os.Stdout); err != nil {
+			fatal(5, "write: %v", err)
+		}
+	} else {
+		saveCapture(res, args[0])
+	}
+}
+
+func saveCapture(res *testexe.CaptureResult, out string) {
+	f, err := os.Create(out)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "create: %v\n", err)
-		os.Exit(4)
+		fatal(4, "create: %v", err)
 	}
 	defer f.Close()
 
 	if _, err := res.WriteTo(f); err != nil {
-		fmt.Fprintf(os.Stderr, "write: %v\n", err)
-		os.Exit(5)
+		fatal(5, "write: %v", err)
 	}
 }
