@@ -156,16 +156,18 @@ func replay(args []string) {
 }
 
 func capture(args []string) {
-	fi, err := os.Stat(args[0])
-	if err == nil {
-		ftype := fi.Mode().Type()
-		// Disallow overriding an existing golden file.
-		// But allow to send to an irregular file such as a TTY or /dev/null.
-		if ftype.IsRegular() {
-			fatal(2, "%s: file exists", args[0])
+	if args[0] != "-" {
+		fi, err := os.Stat(args[0])
+		if err == nil {
+			ftype := fi.Mode().Type()
+			// Disallow overriding an existing golden file.
+			// But allow to send to an irregular file such as a TTY or /dev/null.
+			if ftype.IsRegular() {
+				fatal(2, "%s: file exists", args[0])
+			}
+		} else if !os.IsNotExist(err) {
+			fatal(2, "%v", err)
 		}
-	} else if !os.IsNotExist(err) {
-		fatal(2, "%v", err)
 	}
 
 	// fmt.Println("Launching:", args[1:])
@@ -223,7 +225,13 @@ func capture(args []string) {
 		res.Env = envVars
 	}
 
-	saveCapture(res, args[0])
+	if args[0] == "-" {
+		if _, err := res.WriteTo(os.Stdout); err != nil {
+			fatal(5, "write: %v", err)
+		}
+	} else {
+		saveCapture(res, args[0])
+	}
 }
 
 func saveCapture(res *testexe.CaptureResult, out string) {
