@@ -149,11 +149,12 @@ func capture(args []string) {
 			buf []byte
 			err error
 		}
-		ch := make(chan *R)
+		ch := make(chan *R, 1)
 		go func() {
 			b := []byte{0} // 1-byte buffer
 			n, err := os.Stdin.Read(b)
 			ch <- &R{buf: b[:n], err: err}
+			close(ch)
 		}()
 
 		select {
@@ -170,7 +171,9 @@ func capture(args []string) {
 			// Close stdin to force the Read to fail, and so release the channel and goroutine.
 			// Note: the next open will reuse fd 0.
 			os.Stdin.Close()
-			<-ch
+			go func() {
+				<-ch
+			}()
 		}
 	}
 
