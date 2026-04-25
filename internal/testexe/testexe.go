@@ -75,6 +75,15 @@ func (m *Main) Cleanup() {
 	}
 }
 
+// UsedBy increases the reference count for the test duration.
+//
+// This allows to declare a [Main] in a test, but use it from multiple parallel subtests
+// and have the binary deleted only at the end of all subtests.
+func (m *Main) UsedBy(tb testing.TB) {
+	m.running.Add(1)
+	tb.Cleanup(m.Cleanup)
+}
+
 func (m *Main) build(log io.Writer) {
 	m.building.Lock()
 	defer m.building.Unlock()
