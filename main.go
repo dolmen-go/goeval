@@ -288,7 +288,10 @@ func _main() error {
 	showCmds := flag.Bool("x", false, "print commands executed.")
 
 	flag.Usage = func() {
-		prog := os.Args[0]
+		prog := filepath.Base(os.Args[0])
+		if runtime.GOOS == "windows" {
+			prog = strings.TrimSuffix(prog, ".exe")
+		}
 		fmt.Fprintf(flag.CommandLine.Output(), ""+
 			"\n"+
 			"Usage: %s [<options>...] <code> [<args>...]\n"+
