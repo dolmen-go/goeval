@@ -1,0 +1,6 @@
+goeval -
+
+-- stdin --
+fmt.Println("Hello, world")
+-- stdout --
+Hello, world

@@ -1,0 +1,32 @@
+goeval -h
+
+-- exit status: 1 --
+-- stderr --
+
+Usage: goeval [<options>...] <code> [<args>...]
+
+Options:
+  -E	just dump the assembled source, without running it.
+  -Eplay
+    	just dump the assembled source for posting on https://go.dev/play
+  -go string
+    	go command path. (default "go")
+  -goimports string
+    	goimports tool name, to use an alternate tool or just disable it. (default "goimports")
+  -i value
+    	* import package local package from GOPATH:  [alias=]import-path
+    	* import package in Go module mode:          [alias=]import-path@version
+    	Once a version is mentioned, Go module mode is enabled globally.
+  -o value
+    	just build a binary, don't execute.
+  -play
+    	run the code remotely on https://go.dev/play
+  -share
+    	share the code on https://go.dev/play and print the URL.
+  -x	print commands executed.
+
+Example:
+  goeval -i fmt 'fmt.Println("Hello, world!")'
+
+Copyright 2019-2026 Olivier Mengué.
+Source code: https://github.com/dolmen-go/goeval
