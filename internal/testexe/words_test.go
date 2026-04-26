@@ -240,3 +240,34 @@ func TestSplitWords(t *testing.T) {
 		})
 	}
 }
+
+func FuzzWordsRoundtrip(f *testing.F) {
+	seeds := [][]string{
+		{"hello", "world"},
+		{"foo bar", "baz"},
+		{"", "empty"},
+		{"back`tick", "double\"quote"},
+		{"slash\\", "newline\n"},
+		{"\t", "\r", "\x00"},
+	}
+	for _, seed := range seeds {
+		f.Add(formatWords(seed))
+	}
+
+	f.Fuzz(func(t *testing.T, input string) {
+		words, err := splitWords(input)
+		if err != nil {
+			return
+		}
+
+		formatted := formatWords(words)
+		words2, err := splitWords(formatted)
+		if err != nil {
+			t.Fatalf("Failed to parse formatted words %q: %v", formatted, err)
+		}
+
+		if !reflect.DeepEqual(words, words2) {
+			t.Errorf("Roundtrip mismatch!\nOriginal words: %q\nFormatted: %q\nParsed again: %q", words, formatted, words2)
+		}
+	})
+}
