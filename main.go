@@ -424,11 +424,12 @@ func _main() error {
 		cmd.Env = env
 		cmd.Dir = dir
 		cmd.Stdin = nil
-		cmd.Stdout = nil
 		cmd.Stdout = os.Stdout
-		// go get is too verbose :(
-		cmd.Stderr = nil
+		// go get is too verbose, so capture and show only if error
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
 		if err = run(cmd); err != nil {
+			stderr.WriteTo(os.Stderr)
 			log.Fatal("go get failure:", err)
 		}
 		// log.Println("go get OK.")
