@@ -91,6 +91,9 @@ func splitWords(line string) ([]string, error) {
 				}
 				if line[j] == '\\' {
 					j++
+					if j == len(line) {
+						return nil, fmt.Errorf("invalid escape at column %d", j)
+					}
 				}
 				j++
 			}
