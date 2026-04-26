@@ -100,12 +100,12 @@ func TestSplitWords(t *testing.T) {
 		{
 			name:     "unclosed backquote",
 			input:    "`hello",
-			errMatch: "\"`\" not closed, started at column 1",
+			errMatch: "unclosed backtick starting at column 1",
 		},
 		{
 			name:     "backquote unclosed with words after",
 			input:    "word `hello",
-			errMatch: "\"`\" not closed, started at column 6",
+			errMatch: "unclosed backtick starting at column 6",
 		},
 		{
 			name:  "backquote with backtick inside",
@@ -157,17 +157,17 @@ func TestSplitWords(t *testing.T) {
 		{
 			name:     "unclosed double-quote",
 			input:    `"hello`,
-			errMatch: "`\"` not closed, started at column 1",
+			errMatch: "unclosed double-quote starting at column 1",
 		},
 		{
 			name:     "double-quote unclosed with words after",
 			input:    `word "hello`,
-			errMatch: "`\"` not closed, started at column 6",
+			errMatch: "unclosed double-quote starting at column 6",
 		},
 		{
 			name:     "invalid escape sequence in double quote",
 			input:    `"hello\xworld"`,
-			errMatch: "quote error from column 1: invalid syntax",
+			errMatch: "invalid double-quoted string starting at column 1: invalid syntax",
 		},
 
 		// Mixed cases
@@ -187,9 +187,14 @@ func TestSplitWords(t *testing.T) {
 			want:  []string{"hello \"world\""},
 		},
 		{
+			name:     "invalid escape sequence (backslash at end) in double-quote",
+			input:    `"hello\`,
+			errMatch: `invalid escape sequence at column 7`,
+		},
+		{
 			name:     "invalid escape sequence (backtick) in double-quote",
 			input:    `"hello\gworld"`, // `\g` is an invalid escape sequence
-			errMatch: `quote error from column 1: invalid syntax`,
+			errMatch: `invalid double-quoted string starting at column 1: invalid syntax`,
 		},
 		{
 			name:  "literal backtick in double-quote",

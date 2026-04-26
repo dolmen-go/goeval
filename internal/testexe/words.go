@@ -75,7 +75,7 @@ func splitWords(line string) ([]string, error) {
 		case '`':
 			j := strings.IndexByte(line[i+1:], '`')
 			if j == -1 {
-				return nil, fmt.Errorf("\"`\" not closed, started at column %d", i+1)
+				return nil, fmt.Errorf("unclosed backtick starting at column %d", i+1)
 			}
 			j = i + 1 + j
 			arg.WriteString(line[i+1 : j])
@@ -84,7 +84,7 @@ func splitWords(line string) ([]string, error) {
 			j := i + 1
 			for {
 				if j == len(line) {
-					return nil, fmt.Errorf("`\"` not closed, started at column %d", i+1)
+					return nil, fmt.Errorf("unclosed double-quote starting at column %d", i+1)
 				}
 				if line[j] == '"' {
 					break
@@ -92,14 +92,14 @@ func splitWords(line string) ([]string, error) {
 				if line[j] == '\\' {
 					j++
 					if j == len(line) {
-						return nil, fmt.Errorf("invalid escape at column %d", j)
+						return nil, fmt.Errorf("invalid escape sequence at column %d", j)
 					}
 				}
 				j++
 			}
 			unquoted, err := strconv.Unquote(line[i : j+1])
 			if err != nil {
-				return nil, fmt.Errorf("quote error from column %d: %v", i+1, err)
+				return nil, fmt.Errorf("invalid double-quoted string starting at column %d: %v", i+1, err)
 			}
 			arg.WriteString(unquoted)
 			i = j + 1
