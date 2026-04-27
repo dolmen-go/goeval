@@ -399,8 +399,13 @@ func _main() error {
 			if preferCache {
 				// Keep preferCache as long as we find modules in the cache.
 				// Structure of the cache is documented here: https://go.dev/ref/mod#module-cache
-				_, err := os.Stat(gomodcache + "/cache/download/" + mod + "/@v/" + ver + ".mod")
-				preferCache = err == nil
+				escapedMod, err := module.EscapePath(mod)
+				if err != nil {
+					preferCache = false
+				} else {
+					_, err = os.Stat(gomodcache + "/cache/download/" + escapedMod + "/@v/" + ver + ".mod")
+					preferCache = err == nil
+				}
 			}
 		}
 		for _, path := range imports.packages {
