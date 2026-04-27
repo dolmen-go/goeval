@@ -32,7 +32,7 @@ func getUserAgent() string {
 		// The HTTP specification allows comments in header values: they are enclosed by parenthesis.
 		return "goeval/" + version + " (github.com/dolmen-go/goeval)"
 	}
-	if !ok || bi.Main.Path == "" {
+	if bi.Main.Path == "" {
 		// The HTTP specification allows comments in header values: they are enclosed by parenthesis.
 		return "goeval/" + version + " (" + bi.Path + ")"
 	}
