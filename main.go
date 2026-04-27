@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/token"
 	"io"
 	"log"
 	"os"
@@ -67,8 +68,8 @@ func (imp *imports) Set(s string) error {
 	} else if alias == "_" || alias == "." {
 		tmpPath, _, _ := strings.Cut(path, "@")
 		alias = alias + " " + tmpPath // special alias
-	} else if strings.Contains(alias, " ") {
-		return fmt.Errorf("%q: invalid alias", s)
+	} else if !token.IsIdentifier(alias) {
+		return fmt.Errorf("%q: invalid alias %q", s, alias)
 	}
 	var p2 string
 	if p2, version, ok = strings.Cut(path, "@"); ok {
