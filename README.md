@@ -193,10 +193,6 @@ $ goeval 'fmt.Println(fact(5))};func fact(n int)int{if n==1{return 1};return n*f
 
 ### Use generics
 
-Needs:
-- goeval compiled with Go 1.18+
-- Go 1.18+ installed.
-
 ```console
 $ goeval 'p(1);p("a");};func p[T any](x T){fmt.Println(x)'
 1
