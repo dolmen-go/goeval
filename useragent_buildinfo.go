@@ -21,7 +21,11 @@ import (
 	"strings"
 )
 
-var version = "v1.4.0" // FIXME set at compile time with -ldflags="-X main.version="
+// version is the fallback when [runtime/debug.BuildInfo] is not available.
+// It is used to build the UserAgent.
+//
+// Override at compile time with -ldflags="-X main.version="
+var version = "v1.5.0"
 
 // getUserAgent returns the HTTP User-Agent header value to use for -play and -share.
 //
