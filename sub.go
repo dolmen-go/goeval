@@ -35,19 +35,19 @@ func registerOnlineFlags() {
 
 var (
 	//go:embed sub/play/play.go
-	playClient string
+	playSubSource string
 	//go:embed sub/share/share.go
-	shareClient string
+	shareSubSource string
 )
 
 // prepareSubPlay prepare the source code for compilation and execution of sub/play/play.go.
 func prepareSubPlay() (stdin *bytes.Buffer, tail func() error, cleanup func()) {
-	return prepareSub(playClient)
+	return prepareSub(playSubSource)
 }
 
 // prepareSubPlay prepare the source code for compilation and execution of sub/share/share.go.
 func prepareSubShare() (stdin *bytes.Buffer, tail func() error, cleanup func()) {
-	return prepareSub(shareClient)
+	return prepareSub(shareSubSource)
 }
 
 // prepareSub prepares execution of a sub command via a "go run".
