@@ -62,6 +62,7 @@ var echo = testexe.Main{
 }
 
 func TestEchoStdout(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -79,6 +80,7 @@ func TestEchoStdout(t *testing.T) {
 }
 
 func TestEchoStderr(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -96,6 +98,7 @@ func TestEchoStderr(t *testing.T) {
 }
 
 func TestEchoStdin(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 
 	var buf bytes.Buffer
