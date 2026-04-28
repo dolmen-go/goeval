@@ -86,8 +86,6 @@ func (imp *imports) Set(s string) error {
 		}
 		imp.modules[path] = version
 		imp.onlySemVer = imp.onlySemVer && version == module.CanonicalVersion(version)
-	} else if alias == "" {
-		alias = "  " + path // special alias
 	}
 
 	switch path {
@@ -102,9 +100,10 @@ func (imp *imports) Set(s string) error {
 		}
 	}
 
-	if alias != "" {
-		imp.packages[alias] = path
+	if alias == "" {
+		alias = "  " + path // special alias
 	}
+	imp.packages[alias] = path
 
 	// log.Printf("alias=%s path=%s version=%s", alias, path, version)
 
