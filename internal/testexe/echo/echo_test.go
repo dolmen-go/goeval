@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -113,5 +114,24 @@ func TestEchoStdin(t *testing.T) {
 	out := strings.TrimRight(buf.String(), "\r\n")
 	if out != "baz" {
 		t.Fatalf(`-stdout: got %q, expected "baz"`, out)
+	}
+}
+
+func TestGolden(t *testing.T) {
+	echo.UsedBy(t)
+	t.Parallel()
+
+	const path = "testdata"
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, de := range entries {
+		if !strings.HasSuffix(de.Name(), ".golden") {
+			continue
+		}
+		t.Run(de.Name(), func(t *testing.T) {
+			echo.TestAssert(t, filepath.Join(filepath.FromSlash(path), de.Name()))
+		})
 	}
 }
