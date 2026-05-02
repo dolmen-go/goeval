@@ -24,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -182,6 +183,18 @@ func (m *Main) build(log io.Writer) {
 			fmt.Fprintf(log, "GOCOVERDIR=%s\n", os.Getenv("GOCOVERDIR"))
 		}
 		argsBuild = append(argsBuild, "-cover")
+		if coverMode := testing.CoverMode(); coverMode != "" {
+			argsBuild = append(argsBuild, "-covermode", coverMode)
+
+			if bi, ok := debug.ReadBuildInfo(); ok {
+				// Ideally we should get the -coverpkg value from runtime/debug.BuildInfo.Settings
+				// but with Go 1.26, this isn't yet exposed.
+				// So we fallback to a pattern that covers the whole main module, like "$(go list -m)/...".
+				if p := bi.Main.Path; p != "" {
+					argsBuild = append(argsBuild, "-coverpkg", p+"/...")
+				}
+			}
+		}
 	}
 
 	if len(m.BuildArgs) > 0 {
