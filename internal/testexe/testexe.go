@@ -31,15 +31,22 @@ import (
 	"testing"
 )
 
+var (
+	withCoverage     bool
+	withCoverageOnce sync.Once
+)
+
 // WithCoverage checks if the test is called with active coverage collection.
 // This doesn't check that the test binary itself has been built for coverage collection,
 // but just that the binary that we'll build must have coverage enabled.
 func WithCoverage() bool {
-	if coverdir := os.Getenv("GOCOVERDIR"); coverdir != "" {
-		fi, err := os.Stat(coverdir)
-		return !os.IsNotExist(err) && fi.IsDir()
-	}
-	return false
+	withCoverageOnce.Do(func() {
+		if coverdir := os.Getenv("GOCOVERDIR"); coverdir != "" {
+			fi, err := os.Stat(coverdir)
+			withCoverage = !os.IsNotExist(err) && fi.IsDir()
+		}
+	})
+	return withCoverage
 }
 
 // Main controls the build and execution of a Go program, a "main" package,
