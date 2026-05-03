@@ -52,6 +52,11 @@ func WithCoverage() bool {
 
 // Main controls the build and execution of a Go program, a "main" package,
 // with high level features such as capturing and replaying execution.
+//
+// When coverage is enabled (see [WithCoverage]), execution via Test*Capture methods
+// is locked to avoid conflict while writing coverage data as the output directory
+// is shared. If [Main.Command] or [Main.TestCommand] is used directly without
+// the Test*Capture methods, manual locking via [Main.Locked] is required.
 type Main struct {
 	PackagePath string
 	BuildArgs   []string
@@ -65,6 +70,11 @@ type Main struct {
 
 	exeDir  string
 	exePath string
+
+	// When running with coverage the output directory and the binary are shared,
+	// so on exit coverage data write may overlap: "error: coverage meta-data emit failed".
+	// So we lock execution as much as possibile (within the API style constaints).
+	runCoverageLock sync.Mutex
 }
 
 func (m *Main) reset() {
@@ -218,6 +228,15 @@ func (m *Main) build(log io.Writer) {
 	built = true
 }
 
+// Locked locks the execution of m for the duration of the test, only when coverage is enabled.
+func (m *Main) Locked(tb testing.TB) *Main {
+	if WithCoverage() {
+		m.runCoverageLock.Lock()
+		tb.Cleanup(m.runCoverageLock.Unlock)
+	}
+	return m
+}
+
 func (m *Main) command(log io.Writer, args []string) (cmd *exec.Cmd, cleanup func()) {
 	if logFlush, ok := log.(interface{ Flush() error }); ok {
 		defer logFlush.Flush()
@@ -273,14 +292,35 @@ func (m *Main) TestCommand(tb testing.TB, args ...string) *exec.Cmd {
 	return cmd
 }
 
+func (m *Main) captureLocked(cmd *exec.Cmd) (*CaptureResult, error) {
+	if WithCoverage() {
+		m.runCoverageLock.Lock()
+		defer m.runCoverageLock.Unlock()
+	}
+
+	return Capture(cmd)
+}
+
+func (m *Main) writeCaptureLocked(cmd *exec.Cmd, path string) error {
+	if WithCoverage() {
+		m.runCoverageLock.Lock()
+		defer m.runCoverageLock.Unlock()
+	}
+
+	return WriteCapture(cmd, path)
+}
+
 // TestCapture executes the test binary with the given arguments
 // and captures its stdout, stderr and exit status for reproduction.
 // See [Capture] for more details.
+//
+// When running with coverage enabled, execution is locked.
 func (m *Main) TestCapture(tb testing.TB, args ...string) *CaptureResult {
 	tb.Helper()
 
 	cmd := m.TestCommand(tb, args...)
-	res, err := Capture(cmd)
+
+	res, err := m.captureLocked(cmd)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -289,11 +329,14 @@ func (m *Main) TestCapture(tb testing.TB, args ...string) *CaptureResult {
 
 // TestLogCapture executes the test binary with the given arguments
 // and logs its captured stdout, stderr and exit status for debugging.
+//
+// When running with coverage enabled, execution is locked.
 func (m *Main) TestLogCapture(tb testing.TB, args ...string) {
 	tb.Helper()
 
 	cmd := m.TestCommand(tb, args...)
-	res, err := Capture(cmd)
+
+	res, err := m.captureLocked(cmd)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -305,6 +348,8 @@ func (m *Main) TestLogCapture(tb testing.TB, args ...string) {
 // TestWriteCapture executes the test binary with the given arguments
 // and writes its captured stdout, stderr and exit status to the given path for reproduction.
 // If the file already exists, it is just replayed.
+//
+// When running with coverage enabled, execution is locked.
 func (m *Main) TestWriteCapture(tb testing.TB, path string, args ...string) {
 	tb.Helper()
 
@@ -315,7 +360,7 @@ func (m *Main) TestWriteCapture(tb testing.TB, path string, args ...string) {
 	_, err := os.Stat(osPath)
 	if os.IsNotExist(err) {
 		tb.Log("Capturing output to create " + path + "...")
-		err := WriteCapture(m.TestCommand(tb, args...), path)
+		err := m.writeCaptureLocked(m.TestCommand(tb, args...), path)
 		if err != nil {
 			tb.Fatal(err)
 		}
@@ -328,6 +373,8 @@ func (m *Main) TestWriteCapture(tb testing.TB, path string, args ...string) {
 
 // TestAssert executes the test binary with the given script and asserts
 // that its stdout, stderr and exit status match the expected values.
+//
+// When running with coverage enabled, execution is locked.
 func (m *Main) TestAssert(tb testing.TB, path string) {
 	tb.Helper()
 
@@ -361,6 +408,11 @@ func (m *Main) TestAssert(tb testing.TB, path string) {
 
 	if err := <-chanErr; err != nil {
 		tb.Fatalf("failed to parse capture: %v", err)
+	}
+
+	if WithCoverage() {
+		m.runCoverageLock.Lock()
+		defer m.runCoverageLock.Unlock()
 	}
 
 	TestCommandAssert(tb, cmd, expected)

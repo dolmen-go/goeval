@@ -31,7 +31,10 @@ var echo = testexe.Main{
 }
 
 func TestCapture(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
+
+	echo.Locked(t)
 
 	// testexe.Capture(t.Output(), echo.TestCommand(t, "-stdout", "hello"))
 	res, err := testexe.Capture(echo.TestCommand(t, "-stdout", "hello"))
@@ -44,31 +47,37 @@ func TestCapture(t *testing.T) {
 }
 
 func TestLogCapture(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 	echo.TestLogCapture(t, "-stderr", "err")
 }
 
 func TestAssert(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 	echo.TestAssert(t, "echo/testdata/echo_hello.golden")
 }
 
 func TestWriteCaptureCreate(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 	echo.TestWriteCapture(t, filepath.Join(t.TempDir(), t.Name()+".golden"), "-exit=2", "-stdout=Hello X", "-stderr", "err")
 }
 
 func TestWriteCaptureStderr(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 	echo.TestWriteCapture(t, "echo/testdata/echo_stderr.golden", "-stderr", "err")
 }
 
 func TestWriteCaptureExit(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 	echo.TestWriteCapture(t, "echo/testdata/echo_exit42.golden", "-exit=42", "-stderr=Exit 42")
 }
 
 func TestCaptureEnv(t *testing.T) {
+	echo.UsedBy(t)
 	t.Parallel()
 
 	const (
@@ -84,6 +93,8 @@ func TestCaptureEnv(t *testing.T) {
 
 	// Append env vars in reverse order to check that they are sorted in the capture result.
 	cmd.Env = append(os.Environ(), envVar2+"="+envValue, envVar1+"="+envValue)
+
+	echo.Locked(t)
 
 	err := testexe.WriteCapture(cmd, goldenPath)
 	if err != nil {

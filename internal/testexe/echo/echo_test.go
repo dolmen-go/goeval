@@ -66,7 +66,7 @@ func TestEchoStdout(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	cmd := echo.TestCommand(t, "-stdout", "foo")
+	cmd := echo.Locked(t).TestCommand(t, "-stdout", "foo")
 	cmd.Stdout = &buf
 	err := cmd.Run()
 	if err != nil {
@@ -83,7 +83,7 @@ func TestEchoStderr(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	cmd := echo.TestCommand(t, "-stderr", "bar")
+	cmd := echo.Locked(t).TestCommand(t, "-stderr", "bar")
 	cmd.Stderr = &buf
 	err := cmd.Run()
 	if err != nil {
@@ -100,7 +100,7 @@ func TestEchoStdin(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	cmd := echo.TestCommand(t, "-stdin")
+	cmd := echo.Locked(t).TestCommand(t, "-stdin")
 	cmd.Stdin = strings.NewReader("baz\n")
 	cmd.Stdout = &buf
 	err := cmd.Run()
