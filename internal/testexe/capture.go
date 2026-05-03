@@ -53,6 +53,15 @@ import (
 // In the stdin, stdout and stderr sections, if the content does not end with a newline,
 // a "^D" marker is appended to indicate the end of the content.
 //
+// Alternate section marker may be used if "-- ... ---" matches the content:
+//
+//	-- --
+//	--- ---
+//	---- ----
+//	== ==
+//	=== ===
+//	--( )--
+//
 // [txtar]: https://pkg.go.dev/golang.org/x/tools/txtar
 type CaptureResult struct {
 	Args  []string
@@ -150,11 +159,21 @@ func Capture(cmd *exec.Cmd) (*CaptureResult, error) {
 	return &cap, nil
 }
 
-func writeStream(w io.Writer, title string, content string) (n int64, err error) {
+type sectionMarker string
+
+var sectionMarkers = []sectionMarker{"-- --", "--- ---", "---- ----", "== ==", "=== ===", "--( )--"}
+
+func (sm sectionMarker) split() (string, string) {
+	middle := (len(sm) + 1) >> 1
+	return string(sm[:middle]), string(sm[middle-1:])
+}
+
+func (sm sectionMarker) writeStream(w io.Writer, title string, content string) (n int64, err error) {
 	if len(content) == 0 {
 		return 0, nil
 	}
-	nn, err := fmt.Fprintf(w, "-- %s --\n", title)
+	prefix, suffix := sm.split()
+	nn, err := fmt.Fprintf(w, "%s%s%s\n", prefix, title, suffix)
 	n += int64(nn)
 	if err != nil {
 		return
@@ -174,10 +193,12 @@ func writeStream(w io.Writer, title string, content string) (n int64, err error)
 	return
 }
 
-func readStream(lines []string) (content string, remaining []string) {
+func (sm sectionMarker) readStream(lines []string) (content string, remaining []string) {
+	prefix, suffix := sm.split()
+	minLen := len(sm) + 1
 	var w strings.Builder
 	i := 0
-	for i < len(lines) && !strings.HasPrefix(lines[i], "-- ") {
+	for i < len(lines) && (len(lines[i]) < minLen || !(strings.HasPrefix(lines[i], prefix) && strings.HasSuffix(lines[i], suffix))) {
 		w.WriteString(lines[i] + "\n")
 		i++
 	}
@@ -192,6 +213,40 @@ func readStream(lines []string) (content string, remaining []string) {
 // WriteTo writes the capture result to the given writer in a format
 // that can be parsed by [ParseCapture].
 func (r *CaptureResult) WriteTo(output io.Writer) (n int64, err error) {
+	var marker sectionMarker
+	var markerPrefix, markerSuffix string
+
+TryMarker:
+	for _, m := range sectionMarkers {
+		prefix, suffix := m.split()
+		for _, s := range []string{r.Stdin, r.Stdout, r.Stderr} {
+		SearchBegin:
+			p := strings.Index(s, prefix)
+			if p == -1 || len(s)-p < len(m) {
+				continue
+			}
+			if p > 0 && s[p-1] != '\n' { // Not at the start of a line
+				s = s[p+1:]
+				goto SearchBegin
+			}
+			s = s[p+len(prefix):]
+			q := strings.IndexByte(s, '\n')
+			if q == -1 {
+				q = len(s)
+			}
+			if strings.HasSuffix(s[:q], suffix) {
+				continue TryMarker
+			}
+		}
+
+		marker = m
+		markerPrefix, markerSuffix = prefix, suffix
+		break
+	}
+
+	if marker == "" {
+		return 0, errors.New("can't select a marker compatible with the content")
+	}
 
 	nn, err := fmt.Fprintln(output, formatWords(r.Args))
 	n += int64(nn)
@@ -204,7 +259,7 @@ func (r *CaptureResult) WriteTo(output io.Writer) (n int64, err error) {
 		return
 	}
 	if len(r.Env) > 0 {
-		nn, err = fmt.Fprintln(output, "-- env --")
+		nn, err = fmt.Fprintln(output, markerPrefix+"env"+markerSuffix)
 		n += int64(nn)
 		if err != nil {
 			return
@@ -218,24 +273,24 @@ func (r *CaptureResult) WriteTo(output io.Writer) (n int64, err error) {
 			}
 		}
 	}
-	nnn, err := writeStream(output, "stdin", r.Stdin)
+	nnn, err := marker.writeStream(output, "stdin", r.Stdin)
 	n += nnn
 	if err != nil {
 		return
 	}
 	if r.ExitStatus != 0 {
-		nn, err = fmt.Fprintf(output, "-- exit status: %d --\n", r.ExitStatus)
+		nn, err = fmt.Fprintf(output, "%sexit status: %d%s\n", markerPrefix, r.ExitStatus, markerSuffix)
 		n += int64(nn)
 		if err != nil {
 			return
 		}
 	}
-	nnn, err = writeStream(output, "stdout", r.Stdout)
+	nnn, err = marker.writeStream(output, "stdout", r.Stdout)
 	n += nnn
 	if err != nil {
 		return
 	}
-	nnn, err = writeStream(output, "stderr", r.Stderr)
+	nnn, err = marker.writeStream(output, "stderr", r.Stderr)
 	n += nnn
 	return
 }
@@ -298,30 +353,57 @@ func ParseCapture(r io.Reader) (*CaptureResult, error) {
 	for i < len(lines) && (lines[i] == "" || strings.HasPrefix(lines[i], "#")) {
 		i++
 	}
+
+	if i == len(lines) {
+		return &result, nil
+	}
+
+	var marker sectionMarker
+	{
+		line := lines[i]
+		for _, m := range sectionMarkers {
+			if len(line) < len(m)+2 {
+				continue
+			}
+			prefix, suffix := m.split()
+			if strings.HasPrefix(line, prefix) && strings.HasSuffix(line, suffix) {
+				marker = m
+				break
+			}
+		}
+		if marker == "" {
+			return nil, fmt.Errorf("invalid capture: syntax error at line %d", i+1)
+		}
+	}
+
+	markerPrefix, markerSuffix := marker.split()
 	for i < len(lines) {
-		switch lines[i] {
-		case "-- stdin --":
-			result.Stdin, lines = readStream(lines[i+1:])
+		line := lines[i]
+		title := line[len(markerPrefix) : len(line)-len(markerSuffix)]
+
+		switch title {
+		case "stdin":
+			result.Stdin, lines = marker.readStream(lines[i+1:])
 			i = 0
-		case "-- stdout --":
-			result.Stdout, lines = readStream(lines[i+1:])
+		case "stdout":
+			result.Stdout, lines = marker.readStream(lines[i+1:])
 			i = 0
-		case "-- stderr --":
-			result.Stderr, lines = readStream(lines[i+1:])
+		case "stderr":
+			result.Stderr, lines = marker.readStream(lines[i+1:])
 			i = 0
-		case "-- env --":
+		case "env":
 			var env []string
 			i++
-			for i < len(lines) && !strings.HasPrefix(lines[i], "-- ") {
+			for i < len(lines) && !strings.HasPrefix(lines[i], markerPrefix) {
 				env = append(env, lines[i])
 				i++
 			}
 			slices.Sort(env)
 			result.Env = env
 		default:
-			const prefix = "-- exit status: "
-			if strings.HasPrefix(lines[i], prefix) {
-				n, err := strconv.Atoi(strings.TrimSuffix(lines[i][len(prefix):], " --"))
+			const prefixExit = "exit status: "
+			if strings.HasPrefix(title, prefixExit) {
+				n, err := strconv.Atoi(title[len(prefixExit):])
 				if err != nil || n < 0 || n > 255 {
 					return nil, fmt.Errorf("invalid capture: invalid exit status: %w", err)
 				}
@@ -329,7 +411,7 @@ func ParseCapture(r io.Reader) (*CaptureResult, error) {
 				i++
 				continue
 			}
-			return nil, fmt.Errorf("invalid capture: unexpected line %q", lines[i])
+			return nil, fmt.Errorf("invalid capture: unexpected line %q with title %q", lines[i], title)
 		}
 	}
 	return &result, nil

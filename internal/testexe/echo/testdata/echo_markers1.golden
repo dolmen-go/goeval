@@ -1,0 +1,6 @@
+echo `-stdout=-- OK --` `-stderr=--- KO ---`
+
+---- stdout ----
+-- OK --
+---- stderr ----
+--- KO ---
