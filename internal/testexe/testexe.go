@@ -42,6 +42,8 @@ func WithCoverage() bool {
 	return false
 }
 
+// Main controls the build and execution of a Go program, a "main" package,
+// with high level features such as capturing and replaying execution.
 type Main struct {
 	PackagePath string
 	BuildArgs   []string
