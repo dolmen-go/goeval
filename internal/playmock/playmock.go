@@ -66,6 +66,7 @@ func (s *Server) mux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /compile", func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		contentType := r.Header.Get("Content-Type")
 		mediaType, params, err := mime.ParseMediaType(contentType)
 		if err != nil {
@@ -116,6 +117,7 @@ func (s *Server) mux() *http.ServeMux {
 	})
 
 	mux.HandleFunc("POST /share", func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		contentType := r.Header.Get("Content-Type")
 		mediaType, params, err := mime.ParseMediaType(contentType)
 		if err != nil || (!strings.HasPrefix(mediaType, "application/") && !strings.HasPrefix(mediaType, "text/")) {
