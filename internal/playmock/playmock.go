@@ -17,13 +17,17 @@
 package playmock
 
 import (
+	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -196,4 +200,178 @@ func (s *Server) TestRun(t interface {
 	}
 	t.Cleanup(shutdown)
 	return u
+}
+
+func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL string, caPEM []byte, cleanup func(), _ error) {
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	if u.Scheme != "https" {
+		return "", nil, nil, errors.New("RunProxy handles only https URLs")
+	}
+
+	host, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		host = u.Host // Use host as-is if no port is present
+		port = "443"
+	}
+
+	certPEM, keyPEM, caPEM, err := newCerts(host, 5*time.Minute)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("can't create certificates: %w", err)
+	}
+
+	// 1. Prepare TLS configuration for the hijacked connection
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	// Ensure targetHost includes port for comparison if necessary
+	targetHost := host + ":" + port
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
+	var mux http.Handler = s.mux()
+	if u.Path != "" {
+		u.Path = strings.TrimSuffix(u.Path, "/")
+		mux = http.StripPrefix(u.Path, mux)
+	}
+
+	// 2. Define the main proxy logic
+	proxyFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodConnect {
+			http.Error(w, "Proxy only supports CONNECT", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Check if the client is trying to reach our specific target URL
+		if r.Host != targetHost {
+			http.Error(w, "Proxy only authorized for "+targetHost, http.StatusForbidden)
+			return
+		}
+
+		// 3. Hijack the connection to establish the TLS tunnel
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+			return
+		}
+
+		clientConn, _, err := hijacker.Hijack()
+		if err != nil {
+			return
+		}
+		defer clientConn.Close()
+
+		// Inform the client that the tunnel is established
+		_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+
+		// 4. Wrap the raw connection in TLS (acting as the target server)
+		tlsConn := tls.Server(clientConn, tlsConfig)
+		handshakeCtx, cancelHandshake := context.WithTimeout(ctx, 5*time.Second)
+		defer cancelHandshake()
+		if err := tlsConn.HandshakeContext(handshakeCtx); err != nil {
+			return
+		}
+		defer tlsConn.Close()
+
+		// 5. Use httputil to read the decrypted request and pass it to our handler
+		// We use a buffered reader for the TLS connection
+		tlsReader := bufio.NewReader(tlsConn)
+		for {
+			// Set a deadline for ReadRequest so it doesn't block forever
+			// if the context is cancelled
+			_ = tlsConn.SetReadDeadline(time.Now().Add(1 * time.Second))
+
+			req, err := http.ReadRequest(tlsReader)
+
+			// Check if we should stop because the server is shutting down
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			if err != nil {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					continue // Just a read timeout, loop back and check context
+				}
+				break // Actual error or EOF
+			}
+
+			// Reset deadline for the actual handler processing
+			_ = tlsConn.SetReadDeadline(time.Time{})
+
+			// Capture the response using a dummy ResponseWriter that writes to the TLS conn
+			respWriter := &tlsResponseWriter{conn: tlsConn, header: make(http.Header)}
+			mux.ServeHTTP(respWriter, req)
+
+			if req.Close {
+				break
+			}
+		}
+	})
+
+	// 6. Start the listener (plain HTTP for the proxy control channel)
+	proxySrv := &http.Server{Handler: proxyFunc}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	// Serve until shutdown closes the listener
+	go proxySrv.Serve(ln)
+
+	proxyAddr := "http://" + ln.Addr().String()
+	shutdown := func() {
+		proxySrv.Shutdown(ctx)
+	}
+
+	return proxyAddr, caPEM, shutdown, nil
+}
+
+// tlsResponseWriter pipes the handler's output back into the hijacked TLS connection.
+type tlsResponseWriter struct {
+	conn   net.Conn
+	header http.Header
+	status int
+}
+
+func (w *tlsResponseWriter) Header() http.Header { return w.header }
+func (w *tlsResponseWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.conn.Write(b)
+}
+func (w *tlsResponseWriter) WriteHeader(code int) {
+	if w.status != 0 {
+		return
+	}
+	w.status = code
+	resp := http.Response{
+		StatusCode: code,
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     w.header,
+	}
+	_ = resp.Write(w.conn)
+}
+
+func (s *Server) TestRunProxy(t interface {
+	Context() context.Context
+	Fatalf(string, ...interface{})
+	Cleanup(func())
+}, serverURL string) (string, []byte) {
+	proxyURL, caPEM, shutdown, err := s.RunProxy(t.Context(), serverURL)
+	if err != nil {
+		t.Fatalf("failed to run proxy: %v", err)
+		return "", nil // unreachable
+	}
+	t.Cleanup(shutdown)
+	return proxyURL, caPEM
 }
