@@ -29,6 +29,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -377,4 +379,33 @@ func (s *Server) TestRunProxy(t interface {
 	}
 	t.Cleanup(shutdown)
 	return proxyURL, caPEM
+}
+
+// ProxyEnv builds environment variables to use to connect to [Server.RunProxy]:
+//
+//   - HTTPS_PROXY
+//   - SSL_CERT_FILE
+//
+// Note: [crypto/x509.SystemCertPool()] has builtin support for SSL_CERT_FILE only on some platforms.
+// So you might want to add explicit support for that variable in a Go program that connects to the proxy
+// (see [net/http.Transport], [tls.Config]) for Windows, macOS support:
+//
+//	caPEM, _ := os.ReadFile(os.Getenv("SSL_CERT_FILE"))
+//	pool := x509.NewCertPool()
+//	_ = pool.AppendCertsFromPEM(caPEM)
+//	http.DefaultTransport.(*http.Transport).TLSClientConfig.RootCAs = pool
+func ProxyEnv(t interface {
+	TempDir() string
+	Fatalf(string, ...any)
+}, proxyURL string, caPEM []byte) []string {
+
+	caCertFile := filepath.Join(t.TempDir(), "cacert.pem")
+	if err := os.WriteFile(caCertFile, caPEM, 0400); err != nil {
+		t.Fatalf("can't write SSL_CERT_FILE: %v", err)
+	}
+
+	return []string{
+		"HTTPS_PROXY=" + proxyURL,
+		"SSL_CERT_FILE=" + caCertFile,
+	}
 }
