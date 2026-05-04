@@ -38,9 +38,9 @@ import (
 	"time"
 )
 
-// Run launches an HTTP server.
+// Run launches an HTTP server on a local TCP port.
 //
-// The returned shutdown function must be called to shutdown the server.
+// The returned cleanup function must be called to shutdown the server.
 func Run(ctx context.Context, h http.Handler) (u string, cleanup func(), _ error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -63,6 +63,7 @@ func Run(ctx context.Context, h http.Handler) (u string, cleanup func(), _ error
 	return fmt.Sprintf("http://%s", l.Addr().String()), shutdown, nil
 }
 
+// TestRun wraps [Run] for a [testing.T] context.
 func TestRun(t interface {
 	Context() context.Context
 	Fatalf(string, ...interface{})
@@ -77,6 +78,10 @@ func TestRun(t interface {
 	return u
 }
 
+// RunProxy runs an HTTPS server, exposed through a local, ephemeral HTTP proxy.
+//
+// The proxy URL (localhost, dynamically allocated port, credentials) is returned,
+// with a root CA certificate that authenticates the server.
 func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL string, caPEM []byte, cleanup func(), _ error) {
 	u, err := url.Parse(serverURL)
 	if err != nil {
@@ -311,6 +316,7 @@ func (*virtualListener) Addr() net.Addr {
 	return &virtualListenerIP
 }
 
+// TestRunProxy wraps [RunProxy] for a [testing.T] context.
 func TestRunProxy(t interface {
 	Context() context.Context
 	Fatalf(string, ...interface{})
@@ -325,7 +331,7 @@ func TestRunProxy(t interface {
 	return proxyURL, caPEM
 }
 
-// ProxyEnv builds environment variables to use to connect to [Server.RunProxy]:
+// ProxyEnv builds environment variables to use to connect to [RunProxy]:
 //
 //   - HTTPS_PROXY
 //   - SSL_CERT_FILE
