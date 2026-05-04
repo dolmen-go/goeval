@@ -36,6 +36,7 @@ import (
 	"time"
 )
 
+// Server allows to mock the Go Playground server.
 type Server struct {
 	Compile func(*CompileRequest) (*CompileResponse, error)
 	Share   func(*ShareRequest) (*ShareResponse, error)
@@ -70,7 +71,7 @@ type ShareResponse struct {
 	ID string
 }
 
-func (s *Server) mux() *http.ServeMux {
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /compile", func(w http.ResponseWriter, r *http.Request) {
@@ -165,18 +166,16 @@ func (s *Server) mux() *http.ServeMux {
 	return mux
 }
 
-// Run launches an HTTP server mocking the Go Playground.
+// Run launches an HTTP server.
 //
 // The returned shutdown function must be called to shutdown the server.
-func (s *Server) Run(ctx context.Context) (u string, cleanup func(), _ error) {
-	mux := s.mux()
-
+func Run(ctx context.Context, h http.Handler) (u string, cleanup func(), _ error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", nil, err
 	}
 
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{Handler: h}
 
 	shutdown := func() {
 		srv.Shutdown(context.Background())
@@ -192,12 +191,12 @@ func (s *Server) Run(ctx context.Context) (u string, cleanup func(), _ error) {
 	return fmt.Sprintf("http://%s", l.Addr().String()), shutdown, nil
 }
 
-func (s *Server) TestRun(t interface {
+func TestRun(t interface {
 	Context() context.Context
 	Fatalf(string, ...interface{})
 	Cleanup(func())
-}) string {
-	u, shutdown, err := s.Run(t.Context())
+}, h http.Handler) string {
+	u, shutdown, err := Run(t.Context(), h)
 	if err != nil {
 		t.Fatalf("failed to run server: %v", err)
 		return "" // unreachable
@@ -206,7 +205,7 @@ func (s *Server) TestRun(t interface {
 	return u
 }
 
-func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL string, caPEM []byte, cleanup func(), _ error) {
+func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL string, caPEM []byte, cleanup func(), _ error) {
 	u, err := url.Parse(serverURL)
 	if err != nil {
 		return "", nil, nil, err
@@ -253,17 +252,14 @@ func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL strin
 		NextProtos:   []string{"h2", "http/1.1"}, // Enable HTTP/2 support!
 	}
 
-	var mux http.Handler = s.mux()
-	if u.Path != "" {
-		u.Path = strings.TrimSuffix(u.Path, "/")
-		mux = http.StripPrefix(u.Path, mux)
-	}
+	u.Path = strings.TrimSuffix(u.Path, "/")
+	h = http.StripPrefix(u.Path, h)
 
 	// 1. Initialize the Virtual Listener and the Inner Server
 	vLn := newVirtualListener()
 	tlsLn := tls.NewListener(vLn, tlsConfig)
 	innerServer := &http.Server{
-		Handler:     mux,
+		Handler:     h,
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 
@@ -367,12 +363,12 @@ func (*virtualListener) Addr() net.Addr {
 	return &virtualListenerIP
 }
 
-func (s *Server) TestRunProxy(t interface {
+func TestRunProxy(t interface {
 	Context() context.Context
 	Fatalf(string, ...interface{})
 	Cleanup(func())
-}, serverURL string) (string, []byte) {
-	proxyURL, caPEM, shutdown, err := s.RunProxy(t.Context(), serverURL)
+}, serverURL string, h http.Handler) (string, []byte) {
+	proxyURL, caPEM, shutdown, err := RunProxy(t.Context(), serverURL, h)
 	if err != nil {
 		t.Fatalf("failed to run proxy: %v", err)
 		return "", nil // unreachable

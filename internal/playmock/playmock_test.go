@@ -55,7 +55,7 @@ func TestServerCompile(t *testing.T) {
 		},
 	}
 
-	urlStr := srv.TestRun(t)
+	urlStr := playmock.TestRun(t, srv.Handler())
 
 	checkResponse := func(t *testing.T, resp *http.Response) {
 		t.Helper()
@@ -136,7 +136,7 @@ func TestServerShare(t *testing.T) {
 		},
 	}
 
-	urlStr := srv.TestRun(t)
+	urlStr := playmock.TestRun(t, srv.Handler())
 
 	resp, err := http.Post(urlStr+"/share", "text/plain", strings.NewReader(expectedBody))
 	if err != nil {
@@ -156,7 +156,7 @@ func TestServerShare(t *testing.T) {
 
 func TestServerNotImplemented(t *testing.T) {
 	srv := &playmock.Server{}
-	urlStr := srv.TestRun(t)
+	urlStr := playmock.TestRun(t, srv.Handler())
 
 	resp, _ := http.Post(urlStr+"/compile", "application/json", strings.NewReader("{}"))
 	if resp.StatusCode != http.StatusNotImplemented {
@@ -197,7 +197,7 @@ func TestProxyNotImplemented(t *testing.T) {
 	srv := &playmock.Server{}
 	urlBase := "https://play.golang.org/_"
 
-	proxyURL, caPEM := srv.TestRunProxy(t, urlBase)
+	proxyURL, caPEM := playmock.TestRunProxy(t, urlBase, srv.Handler())
 
 	c, err := proxyClient(proxyURL, caPEM)
 	if err != nil {
