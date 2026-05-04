@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -131,14 +130,10 @@ func TestProxy(t *testing.T) {
 	}
 
 	proxyURL, caPEM := srv.TestRunProxy(t, "https://play.golang.org")
-	caCertFile := filepath.Join(t.TempDir(), "cacert.pem")
-	if err := os.WriteFile(caCertFile, caPEM, 0400); err != nil {
-		t.Fatalf("can't write SSL_CERT_FILE: %v", err)
-	}
 
-	env := append(os.Environ(),
-		"HTTPS_PROXY="+proxyURL,
-		"SSL_CERT_FILE="+caCertFile,
+	env := append(
+		os.Environ(),
+		playmock.ProxyEnv(t, proxyURL, caPEM)...,
 	)
 
 	t.Logf("Proxy started at %v", proxyURL)
