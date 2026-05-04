@@ -102,27 +102,31 @@ func Example_exit42() {
 	// Err 42
 }
 
-func TestProxyHello(t *testing.T) {
+func TestProxy(t *testing.T) {
 	t.Parallel()
 
-	expectedBody := "package main\nimport \"fmt\"\nfunc main() {\n  fmt.Println(\"Hello, world!\")\n}\n"
-	const expectedStdout = "Hello, world!\n"
-	expectedResp := &playmock.CompileResponse{
-		Errors: "",
-		Events: []playmock.CompileEvent{
-			{Message: expectedStdout, Kind: "stdout", Delay: 0},
-		},
-		Status:      0,
-		IsTest:      false,
-		TestsFailed: 0,
+	tests := map[string]string{
+		"package main\nimport \"fmt\"\nfunc main() {\n  fmt.Println(\"Hello, world!\")\n}\n":                       "Hello, world!\n",
+		"package main\nimport (\n  \"fmt\"\n  \"math/rand\"\n)\nfunc main() {\n  fmt.Println(rand.Intn(100))\n}\n": "42\n",
 	}
 
 	srv := &playmock.Server{
 		Compile: func(req *playmock.CompileRequest) (*playmock.CompileResponse, error) {
-			if req.Body != expectedBody {
-				t.Errorf("unexpected body: got %q, want %q", req.Body, expectedBody)
+			out, ok := tests[req.Body]
+			if !ok {
+				t.Errorf("unexpected body: got %q", req.Body)
+				return nil, fmt.Errorf("unexpected input: %q", req.Body)
 			}
-			return expectedResp, nil
+
+			return &playmock.CompileResponse{
+				Errors: "",
+				Events: []playmock.CompileEvent{
+					{Message: out, Kind: "stdout", Delay: 0},
+				},
+				Status:      0,
+				IsTest:      false,
+				TestsFailed: 0,
+			}, nil
 		},
 	}
 
@@ -132,31 +136,41 @@ func TestProxyHello(t *testing.T) {
 		t.Fatalf("can't write SSL_CERT_FILE: %v", err)
 	}
 
-	t.Logf("Proxy started at %v", proxyURL)
-
-	cmd := play.TestCommand(t, userAgent)
-	cmd.Env = append(os.Environ(),
+	env := append(os.Environ(),
 		"HTTPS_PROXY="+proxyURL,
 		"SSL_CERT_FILE="+caCertFile,
 	)
-	cmd.Stdin = strings.NewReader(expectedBody)
 
-	play.Locked(t)
+	t.Logf("Proxy started at %v", proxyURL)
 
-	cap, err := testexe.Capture(cmd)
-	if err != nil {
-		t.Fatal("capture:", err)
-	}
+	for in, out := range tests {
+		t.Run(out, func(t *testing.T) {
+			t.Parallel()
 
-	if cap.ExitStatus != 0 {
-		t.Errorf("Exit status: %d", cap.ExitStatus)
-	}
-	if cap.Stderr != "" {
-		t.Error(cap.Stderr)
-	}
+			t.Log("\n" + in)
 
-	if cap.Stdout != expectedStdout {
-		t.Log("Expected:", expectedStdout)
-		t.Error("Got:", cap.Stdout)
+			cmd := play.TestCommand(t, userAgent)
+			cmd.Env = env
+			cmd.Stdin = strings.NewReader(in)
+
+			play.Locked(t)
+
+			cap, err := testexe.Capture(cmd)
+			if err != nil {
+				t.Fatal("capture:", err)
+			}
+
+			if cap.ExitStatus != 0 {
+				t.Errorf("Exit status: %d", cap.ExitStatus)
+			}
+			if cap.Stderr != "" {
+				t.Error(cap.Stderr)
+			}
+
+			if cap.Stdout != out {
+				t.Log("Expected:", out)
+				t.Error("Got:", cap.Stdout)
+			}
+		})
 	}
 }
