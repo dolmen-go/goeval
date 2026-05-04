@@ -22,8 +22,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"testing"
 
+	"github.com/dolmen-go/goeval/internal/playmock"
 	"github.com/dolmen-go/goeval/internal/testexe"
 )
 
@@ -97,4 +100,63 @@ func Example_exit42() {
 
 	// Output:
 	// Err 42
+}
+
+func TestProxyHello(t *testing.T) {
+	t.Parallel()
+
+	expectedBody := "package main\nimport \"fmt\"\nfunc main() {\n  fmt.Println(\"Hello, world!\")\n}\n"
+	const expectedStdout = "Hello, world!\n"
+	expectedResp := &playmock.CompileResponse{
+		Errors: "",
+		Events: []playmock.CompileEvent{
+			{Message: expectedStdout, Kind: "stdout", Delay: 0},
+		},
+		Status:      0,
+		IsTest:      false,
+		TestsFailed: 0,
+	}
+
+	srv := &playmock.Server{
+		Compile: func(req *playmock.CompileRequest) (*playmock.CompileResponse, error) {
+			if req.Body != expectedBody {
+				t.Errorf("unexpected body: got %q, want %q", req.Body, expectedBody)
+			}
+			return expectedResp, nil
+		},
+	}
+
+	proxyURL, caPEM := srv.TestRunProxy(t, "https://play.golang.org")
+	caCertFile := filepath.Join(t.TempDir(), "cacert.pem")
+	if err := os.WriteFile(caCertFile, caPEM, 0400); err != nil {
+		t.Fatalf("can't write SSL_CERT_FILE: %v", err)
+	}
+
+	t.Logf("Proxy started at %v", proxyURL)
+
+	cmd := play.TestCommand(t, userAgent)
+	cmd.Env = append(os.Environ(),
+		"HTTPS_PROXY="+proxyURL,
+		"SSL_CERT_FILE="+caCertFile,
+	)
+	cmd.Stdin = strings.NewReader(expectedBody)
+
+	play.Locked(t)
+
+	cap, err := testexe.Capture(cmd)
+	if err != nil {
+		t.Fatal("capture:", err)
+	}
+
+	if cap.ExitStatus != 0 {
+		t.Errorf("Exit status: %d", cap.ExitStatus)
+	}
+	if cap.Stderr != "" {
+		t.Error(cap.Stderr)
+	}
+
+	if cap.Stdout != expectedStdout {
+		t.Log("Expected:", expectedStdout)
+		t.Error("Got:", cap.Stdout)
+	}
 }
