@@ -46,7 +46,7 @@ func TestServerCompile(t *testing.T) {
 		TestsFailed: 0,
 	}
 
-	srv := &playmock.Server{
+	mock := &playmock.Mock{
 		Compile: func(req *playmock.CompileRequest) (*playmock.CompileResponse, error) {
 			if req.Body != expectedBody {
 				t.Errorf("unexpected body: got %q, want %q", req.Body, expectedBody)
@@ -55,7 +55,7 @@ func TestServerCompile(t *testing.T) {
 		},
 	}
 
-	urlStr := playmock.TestRun(t, srv.Handler())
+	urlStr := playmock.TestRun(t, mock.Handler())
 
 	checkResponse := func(t *testing.T, resp *http.Response) {
 		t.Helper()
@@ -127,7 +127,7 @@ func TestServerShare(t *testing.T) {
 	expectedBody := "package main"
 	expectedID := "abcdef"
 
-	srv := &playmock.Server{
+	mock := &playmock.Mock{
 		Share: func(req *playmock.ShareRequest) (*playmock.ShareResponse, error) {
 			if req.Body != expectedBody {
 				t.Errorf("unexpected body: got %q, want %q", req.Body, expectedBody)
@@ -136,7 +136,7 @@ func TestServerShare(t *testing.T) {
 		},
 	}
 
-	urlStr := playmock.TestRun(t, srv.Handler())
+	urlStr := playmock.TestRun(t, mock.Handler())
 
 	resp, err := http.Post(urlStr+"/share", "text/plain", strings.NewReader(expectedBody))
 	if err != nil {
@@ -155,8 +155,8 @@ func TestServerShare(t *testing.T) {
 }
 
 func TestServerNotImplemented(t *testing.T) {
-	srv := &playmock.Server{}
-	urlStr := playmock.TestRun(t, srv.Handler())
+	mock := &playmock.Mock{}
+	urlStr := playmock.TestRun(t, mock.Handler())
 
 	resp, _ := http.Post(urlStr+"/compile", "application/json", strings.NewReader("{}"))
 	if resp.StatusCode != http.StatusNotImplemented {
@@ -194,10 +194,10 @@ func proxyClient(proxyURL string, caPEM []byte) (*http.Client, error) {
 func TestProxyNotImplemented(t *testing.T) {
 	t.Parallel()
 
-	srv := &playmock.Server{}
+	mock := &playmock.Mock{}
 	urlBase := "https://play.golang.org/_"
 
-	proxyURL, caPEM := playmock.TestRunProxy(t, urlBase, srv.Handler())
+	proxyURL, caPEM := playmock.TestRunProxy(t, urlBase, mock.Handler())
 
 	c, err := proxyClient(proxyURL, caPEM)
 	if err != nil {

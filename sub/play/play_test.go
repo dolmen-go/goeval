@@ -110,7 +110,7 @@ func TestMock(t *testing.T) {
 		"package main\nimport (\n  \"fmt\"\n  \"math/rand\"\n)\nfunc main() {\n  fmt.Println(rand.Intn(100))\n}\n": "42\n",
 	}
 
-	srv := &playmock.Server{
+	mock := &playmock.Mock{
 		Compile: func(req *playmock.CompileRequest) (*playmock.CompileResponse, error) {
 			out, ok := tests[req.Body]
 			if !ok {
@@ -130,7 +130,7 @@ func TestMock(t *testing.T) {
 		},
 	}
 
-	proxyURL, caPEM := playmock.TestRunProxy(t, "https://play.golang.org", srv.Handler())
+	proxyURL, caPEM := playmock.TestRunProxy(t, "https://play.golang.org", mock.Handler())
 
 	env := append(
 		os.Environ(),

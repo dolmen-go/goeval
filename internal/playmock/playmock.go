@@ -25,8 +25,11 @@ import (
 	"time"
 )
 
-// Server allows to mock the Go Playground server.
-type Server struct {
+// Mock allows to mock the [Go Playground] backend server that runs (/compile)
+// or stores (/save) Go programs.
+//
+// [Go Playground]: https://play.golang.org
+type Mock struct {
 	Compile func(*CompileRequest) (*CompileResponse, error)
 	Share   func(*ShareRequest) (*ShareResponse, error)
 }
@@ -60,7 +63,8 @@ type ShareResponse struct {
 	ID string
 }
 
-func (s *Server) Handler() http.Handler {
+// Handler returns an [http.Handler] that calls [m.Compile] or [m.Share].
+func (m *Mock) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /compile", func(w http.ResponseWriter, r *http.Request) {
@@ -97,12 +101,12 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 
-		if s.Compile == nil {
+		if m.Compile == nil {
 			http.Error(w, "Not Implemented", http.StatusNotImplemented)
 			return
 		}
 
-		resp, err := s.Compile(&req)
+		resp, err := m.Compile(&req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -135,12 +139,12 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 
-		if s.Share == nil {
+		if m.Share == nil {
 			http.Error(w, "Not Implemented", http.StatusNotImplemented)
 			return
 		}
 
-		resp, err := s.Share(&ShareRequest{Body: string(body)})
+		resp, err := m.Share(&ShareRequest{Body: string(body)})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
