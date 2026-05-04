@@ -17,7 +17,6 @@
 package playmock
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -29,6 +28,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -233,12 +233,21 @@ func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL strin
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
+		NextProtos:   []string{"h2", "http/1.1"}, // Enable HTTP/2 support!
 	}
 
 	var mux http.Handler = s.mux()
 	if u.Path != "" {
 		u.Path = strings.TrimSuffix(u.Path, "/")
 		mux = http.StripPrefix(u.Path, mux)
+	}
+
+	// 1. Initialize the Virtual Listener and the Inner Server
+	vLn := newVirtualListener()
+	tlsLn := tls.NewListener(vLn, tlsConfig)
+	innerServer := &http.Server{
+		Handler:     mux,
+		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 
 	// 2. Define the main proxy logic
@@ -254,7 +263,7 @@ func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL strin
 			return
 		}
 
-		// 3. Hijack the connection to establish the TLS tunnel
+		// Hijack the connection to establish the TLS tunnel
 		hijacker, ok := w.(http.Hijacker)
 		if !ok {
 			http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
@@ -265,101 +274,75 @@ func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL strin
 		if err != nil {
 			return
 		}
-		defer clientConn.Close()
 
 		// Inform the client that the tunnel is established
 		_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 
-		// 4. Wrap the raw connection in TLS (acting as the target server)
-		tlsConn := tls.Server(clientConn, tlsConfig)
-		handshakeCtx, cancelHandshake := context.WithTimeout(ctx, 5*time.Second)
-		defer cancelHandshake()
-		if err := tlsConn.HandshakeContext(handshakeCtx); err != nil {
-			return
-		}
-		defer tlsConn.Close()
-
-		// 5. Use httputil to read the decrypted request and pass it to our handler
-		// We use a buffered reader for the TLS connection
-		tlsReader := bufio.NewReader(tlsConn)
-		for {
-			// Set a deadline for ReadRequest so it doesn't block forever
-			// if the context is cancelled
-			_ = tlsConn.SetReadDeadline(time.Now().Add(1 * time.Second))
-
-			req, err := http.ReadRequest(tlsReader)
-
-			// Check if we should stop because the server is shutting down
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					continue // Just a read timeout, loop back and check context
-				}
-				break // Actual error or EOF
-			}
-
-			// Reset deadline for the actual handler processing
-			_ = tlsConn.SetReadDeadline(time.Time{})
-
-			// Capture the response using a dummy ResponseWriter that writes to the TLS conn
-			respWriter := &tlsResponseWriter{conn: tlsConn, header: make(http.Header)}
-			mux.ServeHTTP(respWriter, req)
-
-			if req.Close {
-				break
-			}
+		// Push the RAW connection. The innerServer's tls.Listener will
+		// pick it up and perform the TLS handshake.
+		select {
+		case vLn.conns <- clientConn:
+		case <-vLn.done:
+			clientConn.Close()
+		case <-ctx.Done():
+			clientConn.Close()
 		}
 	})
 
-	// 6. Start the listener (plain HTTP for the proxy control channel)
+	// 3. Start the proxy listener (plain HTTP for the proxy control channel)
 	proxySrv := &http.Server{Handler: proxyFunc}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	// Serve until shutdown closes the listener
+	// Serve until shutdown closes the listeners
+	go innerServer.Serve(tlsLn)
 	go proxySrv.Serve(ln)
 
 	proxyAddr := "http://" + ln.Addr().String()
 	shutdown := func() {
+		vLn.Close() // Stop accepting new connections
+		innerServer.Shutdown(ctx)
 		proxySrv.Shutdown(ctx)
 	}
 
 	return proxyAddr, caPEM, shutdown, nil
 }
 
-// tlsResponseWriter pipes the handler's output back into the hijacked TLS connection.
-type tlsResponseWriter struct {
-	conn   net.Conn
-	header http.Header
-	status int
+type virtualListener struct {
+	conns  chan net.Conn
+	done   chan struct{}
+	closed atomic.Bool
 }
 
-func (w *tlsResponseWriter) Header() http.Header { return w.header }
-func (w *tlsResponseWriter) Write(b []byte) (int, error) {
-	if w.status == 0 {
-		w.WriteHeader(http.StatusOK)
+func newVirtualListener() *virtualListener {
+	return &virtualListener{
+		conns: make(chan net.Conn),
+		done:  make(chan struct{}),
 	}
-	return w.conn.Write(b)
 }
-func (w *tlsResponseWriter) WriteHeader(code int) {
-	if w.status != 0 {
-		return
+
+func (l *virtualListener) Accept() (net.Conn, error) {
+	select {
+	case c := <-l.conns:
+		return c, nil
+	case <-l.done:
+		return nil, net.ErrClosed
 	}
-	w.status = code
-	resp := http.Response{
-		StatusCode: code,
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     w.header,
+}
+
+func (l *virtualListener) Close() error {
+	if l.closed.CompareAndSwap(false, true) {
+		close(l.done)
 	}
-	_ = resp.Write(w.conn)
+	return nil
+}
+
+var virtualListenerIP = net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+
+func (*virtualListener) Addr() net.Addr {
+	return &virtualListenerIP
 }
 
 func (s *Server) TestRunProxy(t interface {
