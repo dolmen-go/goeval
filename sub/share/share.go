@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"log"
 	"net/http"
@@ -20,6 +22,26 @@ func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("share: ")
+
+	if caCertsFile := os.Getenv("SSL_CERT_FILE"); caCertsFile != "" {
+		if tr, ok := http.DefaultTransport.(*http.Transport); ok {
+			tlsConfig := tr.TLSClientConfig
+			if tlsConfig == nil {
+				tlsConfig = new(tls.Config)
+			}
+			caPEM, err := os.ReadFile(caCertsFile)
+			if err == nil {
+				pool := x509.NewCertPool()
+				if pool.AppendCertsFromPEM(caPEM) {
+					tlsConfig.RootCAs = pool
+
+					if tr.TLSClientConfig == nil {
+						tr.TLSClientConfig = tlsConfig
+					}
+				}
+			}
+		}
+	}
 
 	http.DefaultTransport = &uaTransport{rt: http.DefaultTransport, UserAgent: os.Args[1]}
 
