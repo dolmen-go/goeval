@@ -217,7 +217,13 @@ func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL strin
 		port = "443"
 	}
 
-	certPEM, keyPEM, caPEM, err := newCerts(host, 5*time.Minute)
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(5 * time.Minute)
+		ctx, _ = context.WithDeadlineCause(ctx, deadline, fmt.Errorf("certificate for %v will expire", host))
+	}
+
+	certPEM, keyPEM, caPEM, err := newCerts(host, deadline.Add(1*time.Minute))
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("can't create certificates: %w", err)
 	}

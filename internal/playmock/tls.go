@@ -28,7 +28,7 @@ import (
 )
 
 // newCert returns a TLS certificate from an ephemeral CA.
-func newCerts(host string, duration time.Duration) (certPEM, keyPEM, caPEM []byte, err error) {
+func newCerts(host string, expiresAt time.Time) (certPEM, keyPEM, caPEM []byte, err error) {
 	const keyBits = 2048
 
 	// 1. Generate a CA Key and Certificate
@@ -43,8 +43,8 @@ func newCerts(host string, duration time.Duration) (certPEM, keyPEM, caPEM []byt
 			Organization: []string{"Ephemeral Auth Authority"},
 			CommonName:   "Ephemeral CA",
 		},
-		NotBefore:             time.Now().Add(-1 * time.Second),
-		NotAfter:              time.Now().Add(duration + 5*time.Minute),
+		NotBefore:             time.Now().Add(-1 * time.Minute),
+		NotAfter:              expiresAt.Add(5 * time.Minute),
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
@@ -68,8 +68,8 @@ func newCerts(host string, duration time.Duration) (certPEM, keyPEM, caPEM []byt
 			Organization: []string{"Ephemeral Server"},
 			CommonName:   host,
 		},
-		NotBefore:   time.Now(),
-		NotAfter:    time.Now().Add(duration), // 5 minute lifetime
+		NotBefore:   caTemplate.NotBefore,
+		NotAfter:    expiresAt,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		KeyUsage:    x509.KeyUsageDigitalSignature,
 	}
