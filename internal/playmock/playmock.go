@@ -62,10 +62,7 @@ type ShareResponse struct {
 	ID string
 }
 
-// Run launches an HTTP server mocking the Go Playground.
-//
-// The returned shutdown function must be called to shutdown the server.
-func (s *Server) Run(ctx context.Context) (u string, cleanup func(), _ error) {
+func (s *Server) mux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /compile", func(w http.ResponseWriter, r *http.Request) {
@@ -154,6 +151,15 @@ func (s *Server) Run(ctx context.Context) (u string, cleanup func(), _ error) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(resp.ID))
 	})
+
+	return mux
+}
+
+// Run launches an HTTP server mocking the Go Playground.
+//
+// The returned shutdown function must be called to shutdown the server.
+func (s *Server) Run(ctx context.Context) (u string, cleanup func(), _ error) {
+	mux := s.mux()
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
