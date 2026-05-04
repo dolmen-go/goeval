@@ -101,7 +101,8 @@ func Example_exit42() {
 	// Err 42
 }
 
-func TestProxy(t *testing.T) {
+// TestMock starts a mock of play.golang.org exposed to main via a proxy.
+func TestMock(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]string{
@@ -109,7 +110,7 @@ func TestProxy(t *testing.T) {
 		"package main\nimport (\n  \"fmt\"\n  \"math/rand\"\n)\nfunc main() {\n  fmt.Println(rand.Intn(100))\n}\n": "42\n",
 	}
 
-	srv := &playmock.Server{
+	mock := &playmock.Mock{
 		Compile: func(req *playmock.CompileRequest) (*playmock.CompileResponse, error) {
 			out, ok := tests[req.Body]
 			if !ok {
@@ -129,7 +130,7 @@ func TestProxy(t *testing.T) {
 		},
 	}
 
-	proxyURL, caPEM := srv.TestRunProxy(t, "https://play.golang.org")
+	proxyURL, caPEM := playmock.TestRunProxy(t, "https://play.golang.org", mock.Handler())
 
 	env := append(
 		os.Environ(),

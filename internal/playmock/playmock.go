@@ -17,26 +17,19 @@
 package playmock
 
 import (
-	"context"
-	"crypto/rand"
-	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"mime"
-	"net"
 	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
-type Server struct {
+// Mock allows to mock the [Go Playground] backend server that runs (/compile)
+// or stores (/save) Go programs.
+//
+// [Go Playground]: https://play.golang.org
+type Mock struct {
 	Compile func(*CompileRequest) (*CompileResponse, error)
 	Share   func(*ShareRequest) (*ShareResponse, error)
 }
@@ -70,7 +63,8 @@ type ShareResponse struct {
 	ID string
 }
 
-func (s *Server) mux() *http.ServeMux {
+// Handler returns an [http.Handler] that calls [m.Compile] or [m.Share].
+func (m *Mock) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /compile", func(w http.ResponseWriter, r *http.Request) {
@@ -107,12 +101,12 @@ func (s *Server) mux() *http.ServeMux {
 			return
 		}
 
-		if s.Compile == nil {
+		if m.Compile == nil {
 			http.Error(w, "Not Implemented", http.StatusNotImplemented)
 			return
 		}
 
-		resp, err := s.Compile(&req)
+		resp, err := m.Compile(&req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -145,12 +139,12 @@ func (s *Server) mux() *http.ServeMux {
 			return
 		}
 
-		if s.Share == nil {
+		if m.Share == nil {
 			http.Error(w, "Not Implemented", http.StatusNotImplemented)
 			return
 		}
 
-		resp, err := s.Share(&ShareRequest{Body: string(body)})
+		resp, err := m.Share(&ShareRequest{Body: string(body)})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -163,249 +157,4 @@ func (s *Server) mux() *http.ServeMux {
 	})
 
 	return mux
-}
-
-// Run launches an HTTP server mocking the Go Playground.
-//
-// The returned shutdown function must be called to shutdown the server.
-func (s *Server) Run(ctx context.Context) (u string, cleanup func(), _ error) {
-	mux := s.mux()
-
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", nil, err
-	}
-
-	srv := &http.Server{Handler: mux}
-
-	shutdown := func() {
-		srv.Shutdown(context.Background())
-	}
-
-	go func() {
-		<-ctx.Done()
-		shutdown()
-	}()
-
-	go srv.Serve(l)
-
-	return fmt.Sprintf("http://%s", l.Addr().String()), shutdown, nil
-}
-
-func (s *Server) TestRun(t interface {
-	Context() context.Context
-	Fatalf(string, ...interface{})
-	Cleanup(func())
-}) string {
-	u, shutdown, err := s.Run(t.Context())
-	if err != nil {
-		t.Fatalf("failed to run server: %v", err)
-		return "" // unreachable
-	}
-	t.Cleanup(shutdown)
-	return u
-}
-
-func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL string, caPEM []byte, cleanup func(), _ error) {
-	u, err := url.Parse(serverURL)
-	if err != nil {
-		return "", nil, nil, err
-	}
-	if u.Scheme != "https" {
-		return "", nil, nil, errors.New("RunProxy handles only https URLs")
-	}
-
-	host, port, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		host = u.Host // Use host as-is if no port is present
-		port = "443"
-	}
-
-	randData := "_" // just to be sure that we start with a character that isn't a digit
-	for len(randData) < 16 {
-		randData += strings.ToLower(rand.Text())
-	}
-	proxyAuth := randData[:8] + ":" + randData[8:16]
-	proxyAuthHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(proxyAuth))
-
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = time.Now().Add(5 * time.Minute)
-		ctx, _ = context.WithDeadlineCause(ctx, deadline, fmt.Errorf("certificate for %v will expire", host))
-	}
-
-	certPEM, keyPEM, caPEM, err := newCerts(host, deadline.Add(1*time.Minute))
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("can't create certificates: %w", err)
-	}
-
-	// 1. Prepare TLS configuration for the hijacked connection
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	// Ensure targetHost includes port for comparison if necessary
-	targetHost := host + ":" + port
-
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		NextProtos:   []string{"h2", "http/1.1"}, // Enable HTTP/2 support!
-	}
-
-	var mux http.Handler = s.mux()
-	if u.Path != "" {
-		u.Path = strings.TrimSuffix(u.Path, "/")
-		mux = http.StripPrefix(u.Path, mux)
-	}
-
-	// 1. Initialize the Virtual Listener and the Inner Server
-	vLn := newVirtualListener()
-	tlsLn := tls.NewListener(vLn, tlsConfig)
-	innerServer := &http.Server{
-		Handler:     mux,
-		BaseContext: func(net.Listener) context.Context { return ctx },
-	}
-
-	// 2. Define the main proxy logic
-	proxyFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if auth := r.Header.Get("Proxy-Authorization"); auth != proxyAuthHeader {
-			w.Header().Add("Proxy-Authenticate", `Basic realm="Proxy Server"`)
-			http.Error(w, "Proxy Authentication Required", http.StatusProxyAuthRequired)
-			return
-		}
-		if r.Method != http.MethodConnect {
-			http.Error(w, "Proxy only supports CONNECT", http.StatusMethodNotAllowed)
-			return
-		}
-
-		// Check if the client is trying to reach our specific target URL
-		if r.Host != targetHost {
-			http.Error(w, "Proxy only authorized for "+targetHost, http.StatusForbidden)
-			return
-		}
-
-		// Hijack the connection to establish the TLS tunnel
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
-			return
-		}
-
-		clientConn, _, err := hijacker.Hijack()
-		if err != nil {
-			return
-		}
-
-		// Inform the client that the tunnel is established
-		_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
-
-		// Push the RAW connection. The innerServer's tls.Listener will
-		// pick it up and perform the TLS handshake.
-		select {
-		case vLn.conns <- clientConn:
-		case <-vLn.done:
-			clientConn.Close()
-		case <-ctx.Done():
-			clientConn.Close()
-		}
-	})
-
-	// 3. Start the proxy listener (plain HTTP for the proxy control channel)
-	proxySrv := &http.Server{Handler: proxyFunc}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	// Serve until shutdown closes the listeners
-	go innerServer.Serve(tlsLn)
-	go proxySrv.Serve(ln)
-
-	proxyAddr := "http://" + proxyAuth + "@" + ln.Addr().String()
-	shutdown := func() {
-		vLn.Close() // Stop accepting new connections
-		innerServer.Shutdown(ctx)
-		proxySrv.Shutdown(ctx)
-	}
-
-	return proxyAddr, caPEM, shutdown, nil
-}
-
-type virtualListener struct {
-	conns  chan net.Conn
-	done   chan struct{}
-	closed atomic.Bool
-}
-
-func newVirtualListener() *virtualListener {
-	return &virtualListener{
-		conns: make(chan net.Conn),
-		done:  make(chan struct{}),
-	}
-}
-
-func (l *virtualListener) Accept() (net.Conn, error) {
-	select {
-	case c := <-l.conns:
-		return c, nil
-	case <-l.done:
-		return nil, net.ErrClosed
-	}
-}
-
-func (l *virtualListener) Close() error {
-	if l.closed.CompareAndSwap(false, true) {
-		close(l.done)
-	}
-	return nil
-}
-
-var virtualListenerIP = net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
-
-func (*virtualListener) Addr() net.Addr {
-	return &virtualListenerIP
-}
-
-func (s *Server) TestRunProxy(t interface {
-	Context() context.Context
-	Fatalf(string, ...interface{})
-	Cleanup(func())
-}, serverURL string) (string, []byte) {
-	proxyURL, caPEM, shutdown, err := s.RunProxy(t.Context(), serverURL)
-	if err != nil {
-		t.Fatalf("failed to run proxy: %v", err)
-		return "", nil // unreachable
-	}
-	t.Cleanup(shutdown)
-	return proxyURL, caPEM
-}
-
-// ProxyEnv builds environment variables to use to connect to [Server.RunProxy]:
-//
-//   - HTTPS_PROXY
-//   - SSL_CERT_FILE
-//
-// Note: [crypto/x509.SystemCertPool()] has builtin support for SSL_CERT_FILE only on some platforms.
-// So you might want to add explicit support for that variable in a Go program that connects to the proxy
-// (see [net/http.Transport], [tls.Config]) for Windows, macOS support:
-//
-//	caPEM, _ := os.ReadFile(os.Getenv("SSL_CERT_FILE"))
-//	pool := x509.NewCertPool()
-//	_ = pool.AppendCertsFromPEM(caPEM)
-//	http.DefaultTransport.(*http.Transport).TLSClientConfig.RootCAs = pool
-func ProxyEnv(t interface {
-	TempDir() string
-	Fatalf(string, ...any)
-}, proxyURL string, caPEM []byte) []string {
-
-	caCertFile := filepath.Join(t.TempDir(), "cacert.pem")
-	if err := os.WriteFile(caCertFile, caPEM, 0400); err != nil {
-		t.Fatalf("can't write SSL_CERT_FILE: %v", err)
-	}
-
-	return []string{
-		"HTTPS_PROXY=" + proxyURL,
-		"SSL_CERT_FILE=" + caCertFile,
-	}
 }
