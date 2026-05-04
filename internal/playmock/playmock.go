@@ -18,7 +18,9 @@ package playmock
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -217,6 +219,13 @@ func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL strin
 		port = "443"
 	}
 
+	randData := "_" // just to be sure that we start with a character that isn't a digit
+	for len(randData) < 16 {
+		randData += strings.ToLower(rand.Text())
+	}
+	proxyAuth := randData[:8] + ":" + randData[8:16]
+	proxyAuthHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(proxyAuth))
+
 	deadline, ok := ctx.Deadline()
 	if !ok {
 		deadline = time.Now().Add(5 * time.Minute)
@@ -258,6 +267,11 @@ func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL strin
 
 	// 2. Define the main proxy logic
 	proxyFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if auth := r.Header.Get("Proxy-Authorization"); auth != proxyAuthHeader {
+			w.Header().Add("Proxy-Authenticate", `Basic realm="Proxy Server"`)
+			http.Error(w, "Proxy Authentication Required", http.StatusProxyAuthRequired)
+			return
+		}
 		if r.Method != http.MethodConnect {
 			http.Error(w, "Proxy only supports CONNECT", http.StatusMethodNotAllowed)
 			return
@@ -306,7 +320,7 @@ func (s *Server) RunProxy(ctx context.Context, serverURL string) (proxyURL strin
 	go innerServer.Serve(tlsLn)
 	go proxySrv.Serve(ln)
 
-	proxyAddr := "http://" + ln.Addr().String()
+	proxyAddr := "http://" + proxyAuth + "@" + ln.Addr().String()
 	shutdown := func() {
 		vLn.Close() // Stop accepting new connections
 		innerServer.Shutdown(ctx)
