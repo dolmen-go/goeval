@@ -357,7 +357,7 @@ func TestRunProxy(t interface {
 //   - HTTPS_PROXY
 //   - SSL_CERT_FILE
 //
-// Note: [crypto/x509.SystemCertPool()] has builtin support for SSL_CERT_FILE only on some platforms.
+// Note: [crypto/x509.SystemCertPool]() has builtin support for SSL_CERT_FILE only on some platforms.
 // So you might want to add explicit support for that variable in a Go program that connects to the proxy
 // (see [net/http.Transport], [tls.Config]) for Windows, macOS support:
 //
