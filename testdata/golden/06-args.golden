@@ -1,0 +1,4 @@
+goeval fmt.Println(os.Args[1]) `Hello, world`
+
+-- stdout --
+Hello, world

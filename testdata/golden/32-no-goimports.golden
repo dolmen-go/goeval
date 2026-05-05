@@ -1,0 +1,9 @@
+goeval -goimports= -i=fmt -E `fmt.Println("Hello, world")`
+
+-- stdout --
+package main
+import "fmt"
+func main() {
+//line :1
+fmt.Println("Hello, world")
+}

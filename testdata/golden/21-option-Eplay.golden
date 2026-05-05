@@ -1,0 +1,10 @@
+goeval -Eplay `fmt.Println("Hello, world")`
+
+-- stdout --
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Hello, world")
+}

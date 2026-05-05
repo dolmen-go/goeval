@@ -1,0 +1,7 @@
+goeval -
+
+-- stdin --
+#!/usr/bin/env goeval -
+fmt.Println("Hello, world")
+-- stdout --
+Hello, world
