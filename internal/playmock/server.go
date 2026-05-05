@@ -105,9 +105,10 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 	proxyAuthHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(proxyAuth))
 
 	deadline, ok := ctx.Deadline()
+	var cancelCtx context.CancelFunc
 	if !ok {
 		deadline = time.Now().Add(5 * time.Minute)
-		ctx, _ = context.WithDeadlineCause(ctx, deadline, fmt.Errorf("certificate for %v will expire", host))
+		ctx, cancelCtx = context.WithDeadlineCause(ctx, deadline, fmt.Errorf("certificate for %v will expire", host))
 	}
 
 	certPEM, keyPEM, caPEM, err := newCerts(host, deadline.Add(1*time.Minute))
@@ -200,6 +201,9 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 		vLn.Close() // Stop accepting new connections
 		innerServer.Shutdown(ctx)
 		proxySrv.Shutdown(ctx)
+		if cancelCtx != nil {
+			cancelCtx()
+		}
 	}
 
 	return proxyURL, caPEM, cleanup, nil
