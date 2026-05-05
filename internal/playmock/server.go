@@ -205,6 +205,23 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 	return proxyURL, caPEM, cleanup, nil
 }
 
+func randSerialNumber() *big.Int {
+	var b [16]byte // 128 bits
+	var n big.Int
+	for {
+		// Since the API guarantees no error and a full buffer,
+		// we can safely ignore the return values.
+		_, _ = rand.Read(b[:])
+		n.SetBytes(b[:])
+		// X.509 serial numbers must be positive.
+		// Probability of n being 0 is 1 in 2^128,
+		// but we check for formal correctness.
+		if n.Sign() == 1 {
+			return &n
+		}
+	}
+}
+
 // newCert returns a TLS certificate from an ephemeral CA.
 func newCerts(host string, expiresAt time.Time) (certPEM, keyPEM, caPEM []byte, err error) {
 	const keyBits = 2048
@@ -216,7 +233,7 @@ func newCerts(host string, expiresAt time.Time) (certPEM, keyPEM, caPEM []byte, 
 	}
 
 	caTemplate := &x509.Certificate{
-		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		SerialNumber: randSerialNumber(),
 		Subject: pkix.Name{
 			Organization: []string{"Ephemeral Auth Authority"},
 			CommonName:   "Ephemeral CA",
@@ -241,7 +258,7 @@ func newCerts(host string, expiresAt time.Time) (certPEM, keyPEM, caPEM []byte, 
 	}
 
 	serverTemplate := &x509.Certificate{
-		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		SerialNumber: randSerialNumber(),
 		Subject: pkix.Name{
 			Organization: []string{"Ephemeral Server"},
 			CommonName:   host,
