@@ -23,7 +23,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"testing"
 
+	"github.com/dolmen-go/goeval/internal/playmock"
 	"github.com/dolmen-go/goeval/internal/testexe"
 )
 
@@ -97,4 +99,74 @@ func Example_exit42() {
 
 	// Output:
 	// Err 42
+}
+
+// TestMock starts a mock of play.golang.org exposed to main via a proxy.
+func TestMock(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"package main\nimport \"fmt\"\nfunc main() {\n  fmt.Println(\"Hello, world!\")\n}\n":                       "Hello, world!\n",
+		"package main\nimport (\n  \"fmt\"\n  \"math/rand\"\n)\nfunc main() {\n  fmt.Println(rand.Intn(100))\n}\n": "42\n",
+	}
+
+	mock := &playmock.Mock{
+		Compile: func(req *playmock.CompileRequest) (*playmock.CompileResponse, error) {
+			out, ok := tests[req.Body]
+			if !ok {
+				t.Errorf("unexpected body: got %q", req.Body)
+				return nil, fmt.Errorf("unexpected input: %q", req.Body)
+			}
+
+			return &playmock.CompileResponse{
+				Errors: "",
+				Events: []playmock.CompileEvent{
+					{Message: out, Kind: "stdout", Delay: 0},
+				},
+				Status:      0,
+				IsTest:      false,
+				TestsFailed: 0,
+			}, nil
+		},
+	}
+
+	proxyURL, caPEM := playmock.TestRunProxy(t, "https://play.golang.org", mock.Handler())
+
+	env := append(
+		os.Environ(),
+		playmock.ProxyEnv(t, proxyURL, caPEM)...,
+	)
+
+	t.Logf("Proxy started at %v", proxyURL)
+
+	for in, out := range tests {
+		t.Run(out, func(t *testing.T) {
+			t.Parallel()
+
+			t.Log("\n" + in)
+
+			cmd := play.TestCommand(t, userAgent)
+			cmd.Env = env
+			cmd.Stdin = strings.NewReader(in)
+
+			play.Locked(t)
+
+			cap, err := testexe.Capture(cmd)
+			if err != nil {
+				t.Fatal("capture:", err)
+			}
+
+			if cap.ExitStatus != 0 {
+				t.Errorf("Exit status: %d", cap.ExitStatus)
+			}
+			if cap.Stderr != "" {
+				t.Error(cap.Stderr)
+			}
+
+			if cap.Stdout != out {
+				t.Log("Expected:", out)
+				t.Error("Got:", cap.Stdout)
+			}
+		})
+	}
 }
