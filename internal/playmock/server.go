@@ -186,23 +186,23 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 
 	// 3. Start the proxy listener (plain HTTP for the proxy control channel)
 	proxySrv := &http.Server{Handler: proxyFunc}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	proxyLn, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", nil, nil, err
 	}
 
 	// Serve until shutdown closes the listeners
 	go innerServer.Serve(tlsLn)
-	go proxySrv.Serve(ln)
+	go proxySrv.Serve(proxyLn)
 
-	proxyAddr := "http://" + proxyAuth + "@" + ln.Addr().String()
-	shutdown := func() {
+	proxyURL = "http://" + proxyAuth + "@" + proxyLn.Addr().String()
+	cleanup = func() {
 		vLn.Close() // Stop accepting new connections
 		innerServer.Shutdown(ctx)
 		proxySrv.Shutdown(ctx)
 	}
 
-	return proxyAddr, caPEM, shutdown, nil
+	return proxyURL, caPEM, cleanup, nil
 }
 
 // newCert returns a TLS certificate from an ephemeral CA.
@@ -321,7 +321,7 @@ func TestRunProxy(t interface {
 	Context() context.Context
 	Fatalf(string, ...interface{})
 	Cleanup(func())
-}, serverURL string, h http.Handler) (string, []byte) {
+}, serverURL string, h http.Handler) (proxyURL string, caPEM []byte) {
 	proxyURL, caPEM, shutdown, err := RunProxy(t.Context(), serverURL, h)
 	if err != nil {
 		t.Fatalf("failed to run proxy: %v", err)
