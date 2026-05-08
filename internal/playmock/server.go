@@ -128,6 +128,7 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		NextProtos:   []string{"h2", "http/1.1"}, // Enable HTTP/2 support!
+		MinVersion:   tls.VersionTLS13,
 	}
 
 	u.Path = strings.TrimSuffix(u.Path, "/")
