@@ -122,6 +122,9 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 		return "", nil, nil, err
 	}
 
+	// proxyHost will be defined once we are listening as the final port might be allocated by the OS
+	var proxyHost string
+
 	// Ensure targetHost includes port for comparison if necessary
 	targetHost := host + ":" + port
 
@@ -144,45 +147,64 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 
 	// 2. Define the main proxy logic
 	proxyFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if auth := r.Header.Get("Proxy-Authorization"); auth != proxyAuthHeader {
-			w.Header().Add("Proxy-Authenticate", `Basic realm="Proxy Server"`)
-			http.Error(w, "Proxy Authentication Required", http.StatusProxyAuthRequired)
-			return
-		}
-		if r.Method != http.MethodConnect {
+		switch r.Method {
+		case http.MethodGet:
+			// Serve the caPEM like cloud.google.com/go/httpreplay/cmd/httpr
+			if r.Host == proxyHost && strings.HasPrefix(r.RequestURI, "/") {
+				const filename = `ca-certificates`
+				switch r.RequestURI[1:] {
+				case filename + ".pem", filename + ".crt", filename + ".p12", filename + ".cer", "authority.cer":
+					// GET /cacert.crt
+					h := w.Header()
+					h.Set(`Content-Type`, `application/x-x509-ca-cert`)
+					h.Set(`Content-Disposition`, `attachment; filename="`+r.RequestURI[1:]+`"`)
+					w.WriteHeader(http.StatusOK)
+					w.Write(caPEM)
+				default:
+					http.Error(w, "Not found", http.StatusNotFound)
+				}
+				return
+			}
 			http.Error(w, "Proxy only supports CONNECT", http.StatusMethodNotAllowed)
-			return
-		}
+		case http.MethodConnect:
+			if auth := r.Header.Get("Proxy-Authorization"); auth != proxyAuthHeader {
+				w.Header().Add("Proxy-Authenticate", `Basic realm="Proxy Server"`)
+				http.Error(w, "Proxy Authentication Required", http.StatusProxyAuthRequired)
+				return
+			}
 
-		// Check if the client is trying to reach our specific target URL
-		if r.Host != targetHost {
-			http.Error(w, "Proxy only authorized for "+targetHost, http.StatusForbidden)
-			return
-		}
+			// Check if the client is trying to reach our specific target URL
+			if r.Host != targetHost {
+				http.Error(w, "Proxy only authorized for "+targetHost, http.StatusForbidden)
+				return
+			}
 
-		// Hijack the connection to establish the TLS tunnel
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
-			return
-		}
+			// Hijack the connection to establish the TLS tunnel
+			hijacker, ok := w.(http.Hijacker)
+			if !ok {
+				http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+				return
+			}
 
-		clientConn, _, err := hijacker.Hijack()
-		if err != nil {
-			return
-		}
+			clientConn, _, err := hijacker.Hijack()
+			if err != nil {
+				return
+			}
 
-		// Inform the client that the tunnel is established
-		_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+			// Inform the client that the tunnel is established
+			_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 
-		// Push the RAW connection. The innerServer's tls.Listener will
-		// pick it up and perform the TLS handshake.
-		select {
-		case vLn.conns <- clientConn:
-		case <-vLn.done:
-			clientConn.Close()
-		case <-ctx.Done():
-			clientConn.Close()
+			// Push the RAW connection. The innerServer's tls.Listener will
+			// pick it up and perform the TLS handshake.
+			select {
+			case vLn.conns <- clientConn:
+			case <-vLn.done:
+				clientConn.Close()
+			case <-ctx.Done():
+				clientConn.Close()
+			}
+		default:
+			http.Error(w, "Proxy only supports CONNECT", http.StatusMethodNotAllowed)
 		}
 	})
 
@@ -197,7 +219,8 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 	go innerServer.Serve(tlsLn)
 	go proxySrv.Serve(proxyLn)
 
-	proxyURL = "http://" + proxyAuth + "@" + proxyLn.Addr().String()
+	proxyHost = proxyLn.Addr().String()
+	proxyURL = "http://" + proxyAuth + "@" + proxyHost
 	cleanup = func() {
 		vLn.Close() // Stop accepting new connections
 		innerServer.Shutdown(ctx)

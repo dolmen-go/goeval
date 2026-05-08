@@ -199,6 +199,10 @@ func TestProxyNotImplemented(t *testing.T) {
 
 	proxyURL, caPEM := playmock.TestRunProxy(t, urlBase, mock.Handler())
 
+	t.Run("CheckCACert", func(t *testing.T) {
+		testProxyCACert(t, http.DefaultClient, proxyURL, caPEM)
+	})
+
 	c, err := proxyClient(proxyURL, caPEM)
 	if err != nil {
 		t.Fatal(err)
