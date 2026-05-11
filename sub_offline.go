@@ -36,10 +36,10 @@ func disabledFeature(string) error {
 	return errors.New(featureIsDisabled)
 }
 
-func prepareSubPlay() (*bytes.Buffer, func() error, func()) {
+func prepareSubPlay() (*bytes.Buffer, func() error, func(), error) {
 	panic("dead code in offline mode")
 }
 
-func prepareSubShare() (*bytes.Buffer, func() error, func()) {
+func prepareSubShare() (*bytes.Buffer, func() error, func(), error) {
 	panic("dead code in offline mode")
 }

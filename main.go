@@ -374,7 +374,7 @@ func _main() error {
 
 		var err error
 		if dir, err = os.MkdirTemp("", "goeval*"); err != nil {
-			log.Fatal(err)
+			return err
 		}
 		// Remove dir, dir/go.mod, dir/go.sum
 		// Ignore errors: this is a temp dir
@@ -384,12 +384,12 @@ func _main() error {
 
 		origDir, err = os.Getwd()
 		if err != nil {
-			log.Fatal("getwd:", err)
+			return fmt.Errorf("getwd: %w", err)
 		}
 
 		gomod := dir + "/go.mod"
 		if err := os.WriteFile(gomod, []byte("module "+moduleName+"\n"), 0600); err != nil {
-			log.Fatal("go.mod:", err)
+			return fmt.Errorf("go.mod: %w", err)
 		}
 
 		var gogetArgs []string
@@ -435,7 +435,7 @@ func _main() error {
 		cmd.Stderr = &stderr
 		if err = run(cmd); err != nil {
 			stderr.WriteTo(os.Stderr)
-			log.Fatal("go get failure:", err)
+			return fmt.Errorf("go get failure: %w", err)
 		}
 		// log.Println("go get OK.")
 	}
@@ -497,12 +497,14 @@ func _main() error {
 		srcFilename string
 		// tail is the action that will process srcFinal.
 		tail func() error
+
+		err error
 	)
 	switch action {
 	case actionRun, actionBuild:
 		f, err := os.CreateTemp(dir, "*.go")
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		defer f.Close()
 		defer os.Remove(f.Name())
@@ -517,18 +519,23 @@ func _main() error {
 		}
 	case actionPlay:
 		var cleanup func()
-		srcFinal, tail, cleanup = prepareSubPlay()
+		srcFinal, tail, cleanup, err = prepareSubPlay()
+		if err != nil {
+			return err
+		}
 		defer cleanup()
 	case actionShare:
 		var cleanup func()
-		srcFinal, tail, cleanup = prepareSubShare()
+		srcFinal, tail, cleanup, err = prepareSubShare()
+		if err != nil {
+			return err
+		}
 		defer cleanup()
 	default: // actionDump, actionDumpPlay
 		srcFinal = os.Stdout
 		tail = func() error { return nil }
 	}
 
-	var err error
 	switch goimports {
 	case "goimports":
 		var out []byte
@@ -578,7 +585,7 @@ func _main() error {
 	if moduleMode && action >= actionDump {
 		gomod, err := os.Open(dir + "/go.mod")
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		io.WriteString(srcFinal, "-- go.mod --\n")
 		defer gomod.Close()
@@ -588,7 +595,7 @@ func _main() error {
 		switch {
 		case errors.Is(err, os.ErrNotExist): // ignore
 		case err != nil:
-			log.Fatal(err)
+			return err
 		default:
 			io.WriteString(srcFinal, "-- go.sum --\n")
 			defer gosum.Close()
