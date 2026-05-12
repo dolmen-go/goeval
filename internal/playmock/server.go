@@ -66,7 +66,7 @@ func Run(ctx context.Context, h http.Handler) (u string, cleanup func(), _ error
 // TestRun wraps [Run] for a [testing.T] context.
 func TestRun(t interface {
 	Context() context.Context
-	Fatalf(string, ...interface{})
+	Fatalf(string, ...any)
 	Cleanup(func())
 }, h http.Handler) string {
 	u, shutdown, err := Run(t.Context(), h)
@@ -364,7 +364,7 @@ func (*virtualListener) Addr() net.Addr {
 // TestRunProxy wraps [RunProxy] for a [testing.T] context.
 func TestRunProxy(t interface {
 	Context() context.Context
-	Fatalf(string, ...interface{})
+	Fatalf(string, ...any)
 	Cleanup(func())
 }, serverURL string, h http.Handler) (proxyURL string, caPEM []byte) {
 	proxyURL, caPEM, shutdown, err := RunProxy(t.Context(), serverURL, h)
