@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -53,6 +54,11 @@ func main() {
 	code, _ := io.ReadAll(os.Stdin)
 	resp, err := http.PostForm("https://play.golang.org/compile", url.Values{"body": {string(code)}})
 	if err != nil {
+		if cverr := new(tls.CertificateVerificationError); errors.As(err, &cverr) {
+			for _, crt := range cverr.UnverifiedCertificates {
+				log.Printf("Subject: %q, Issuer: %q", crt.Subject, crt.Issuer)
+			}
+		}
 		log.Fatal(err)
 	}
 	defer resp.Body.Close()
