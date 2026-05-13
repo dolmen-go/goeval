@@ -24,10 +24,12 @@ import (
 	"go/token"
 	"io"
 	"log"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -466,7 +468,8 @@ func _main() error {
 	}
 
 	src.WriteString("package main\n")
-	for alias, path := range imports.packages {
+	for _, alias := range slices.Sorted(maps.Keys(imports.packages)) {
+		path := imports.packages[alias]
 		if len(alias) > 2 && alias[1] == ' ' {
 			switch alias[0] {
 			case '.', '_':
