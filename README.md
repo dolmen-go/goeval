@@ -42,6 +42,10 @@ $ goeval 'http.Handle("/",http.FileServer(http.Dir(".")));http.ListenAndServe(":
 
 $ # Import net/http symbols in package scope for shorter code
 $ goeval -i .=net/http 'Handle("/",FileServer(Dir(".")));ListenAndServe(":8084",nil)'
+
+$ # Generate a secret
+$ goeval -i crypto/rand 'fmt.Println(rand.Text())'
+FUWGDITDMZ5DYJCCT6Y32S3Y4A
 ```
 
 ### Go modules
