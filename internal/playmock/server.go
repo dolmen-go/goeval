@@ -82,7 +82,7 @@ func TestRun(t interface {
 //
 // The proxy URL (localhost, dynamically allocated port, credentials) is returned,
 // with a root CA certificate that authenticates the server.
-func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL string, caPEM []byte, cleanup func(), _ error) {
+func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL string, caPEM []byte, cleanup func(), err error) {
 	u, err := url.Parse(serverURL)
 	if err != nil {
 		return "", nil, nil, err
@@ -109,6 +109,12 @@ func RunProxy(ctx context.Context, serverURL string, h http.Handler) (proxyURL s
 	if !ok {
 		deadline = time.Now().Add(5 * time.Minute)
 		ctx, cancelCtx = context.WithDeadlineCause(ctx, deadline, fmt.Errorf("certificate for %v will expire", host))
+		// Release the derived context in case of error below so the timer is freed.
+		defer func() {
+			if err != nil {
+				cancelCtx()
+			}
+		}()
 	}
 
 	certPEM, keyPEM, caPEM, err := newCerts(host, deadline.Add(1*time.Minute))
