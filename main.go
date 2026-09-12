@@ -543,7 +543,7 @@ func _main() error {
 	case "goimports":
 		var out []byte
 		var filename string // filename is used to locate the relevant go.mod
-		if imports.packages != nil {
+		if moduleMode {
 			filename = srcFilename
 		}
 		out, err = goimp.Process(filename, src.Bytes(), &goimp.Options{
