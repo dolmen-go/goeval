@@ -89,6 +89,7 @@ func Example_import() {
 type printlnWriter func(...any)
 
 func (tl printlnWriter) Write(b []byte) (int, error) {
+	n := len(b)
 	for len(b) > 0 {
 		p := bytes.IndexByte(b, '\n')
 		if p == -1 {
@@ -102,7 +103,7 @@ func (tl printlnWriter) Write(b []byte) (int, error) {
 		tl(string(line))
 		b = b[p+1:]
 	}
-	return len(b), nil
+	return n, nil
 }
 
 // goevalPrint runs goeval with the given arguments, and sends each line from standard output
