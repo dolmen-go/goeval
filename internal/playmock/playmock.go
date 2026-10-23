@@ -147,8 +147,12 @@ func (share Share) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	contentType := r.Header.Get("Content-Type")
 	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil || (!strings.HasPrefix(mediaType, "application/") && !strings.HasPrefix(mediaType, "text/")) {
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotAcceptable)
+		return
+	}
+	if !strings.HasPrefix(mediaType, "application/") && !strings.HasPrefix(mediaType, "text/") {
+		http.Error(w, "unexpected content type", http.StatusNotAcceptable)
 		return
 	}
 	if len(params) > 0 {
