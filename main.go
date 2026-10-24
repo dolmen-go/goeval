@@ -73,6 +73,7 @@ func (imp *imports) Set(s string) error {
 	} else if !token.IsIdentifier(alias) {
 		return fmt.Errorf("%q: invalid alias %q", s, alias)
 	}
+
 	var p2 string
 	if p2, version, ok = strings.Cut(path, "@"); ok {
 		if version == "" {
@@ -104,7 +105,10 @@ func (imp *imports) Set(s string) error {
 
 	if alias == "" {
 		alias = "  " + path // special alias
+	} else if p, used := imp.packages[alias]; used && p != path {
+		return fmt.Errorf("%q: duplicate alias %q used for %q and %q", s, alias, p, path)
 	}
+
 	imp.packages[alias] = path
 
 	// log.Printf("alias=%s path=%s version=%s", alias, path, version)
