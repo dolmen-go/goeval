@@ -126,7 +126,7 @@ func runX(cmd *exec.Cmd) error {
 	if cmd.Args[0] == goCmd && cmd.Args[1] != "env" {
 		cmd.Args = append([]string{goCmd, cmd.Args[1], "-x"}, cmd.Args[2:]...)
 	}
-	fmt.Printf("%s\n", cmd.Args)
+	fmt.Fprintf(os.Stderr, "%s\n", cmd.Args)
 	return cmd.Run()
 }
 
