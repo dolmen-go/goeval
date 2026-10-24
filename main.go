@@ -409,7 +409,10 @@ func _main() error {
 				if err != nil {
 					preferCache = false
 				} else {
-					_, err = os.Stat(gomodcache + "/cache/download/" + escapedMod + "/@v/" + ver + ".mod")
+					escapedVer, err := module.EscapeVersion(ver)
+					if err == nil {
+						_, err = os.Stat(gomodcache + "/cache/download/" + escapedMod + "/@v/" + escapedVer + ".mod")
+					}
 					preferCache = err == nil
 				}
 			}
