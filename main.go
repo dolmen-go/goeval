@@ -411,7 +411,17 @@ func _main() error {
 				} else {
 					escapedVer, err := module.EscapeVersion(ver)
 					if err == nil {
-						_, err = os.Stat(gomodcache + "/cache/download/" + escapedMod + "/@v/" + escapedVer + ".mod")
+						// Lookup the module in the local cache.
+						// As we are handling package paths, we go upwards to reach a module root.
+						for {
+							p := filepath.Join(gomodcache, "cache", "download", escapedMod, "@v", escapedVer+".mod")
+							_, err = os.Stat(p)
+							i := strings.LastIndexByte(escapedMod, '/')
+							if err == nil || i < 0 {
+								break
+							}
+							escapedMod = escapedMod[:i]
+						}
 					}
 					preferCache = err == nil
 				}
