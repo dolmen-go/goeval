@@ -320,6 +320,7 @@ func _main() error {
 	if flag.NArg() < 1 {
 		flag.Usage()
 	}
+	shebangRemoved := false
 	code := flag.Arg(0)
 	if code == "-" {
 		b, err := io.ReadAll(os.Stdin)
@@ -332,6 +333,7 @@ func _main() error {
 					i++
 				}
 				b = b[i+1:]
+				shebangRemoved = true
 			}
 		}
 		code = string(b)
@@ -508,7 +510,11 @@ func _main() error {
 	}
 	src.WriteString("func main() {\n")
 	if action <= actionDump {
-		src.WriteString("//line :1\n")
+		if shebangRemoved {
+			src.WriteString("//line :2\n")
+		} else {
+			src.WriteString("//line :1\n")
+		}
 	}
 	src.WriteString(code)
 	src.WriteString("\n}\n")
