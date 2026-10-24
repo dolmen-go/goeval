@@ -411,13 +411,18 @@ func _main() error {
 				} else {
 					escapedVer, err := module.EscapeVersion(ver)
 					if err == nil {
-						// Lookup the module in the local cache.
+						// Look up the module in the local cache.
 						// As we are handling package paths, we go upwards to reach a module root.
 						for {
-							p := filepath.Join(gomodcache, "cache", "download", escapedMod, "@v", escapedVer+".mod")
-							_, err = os.Stat(p)
+							p := filepath.Join(gomodcache, "cache", "download", escapedMod, "@v", escapedVer)
+							_, err = os.Stat(p + ".mod")
+							if err == nil {
+								// A .mod file is there, but do we also have the .zip?
+								_, err = os.Stat(p + ".zip")
+								break // Stop lookup, independently of .zip being found
+							}
 							i := strings.LastIndexByte(escapedMod, '/')
-							if err == nil || i < 0 {
+							if i < 0 {
 								break
 							}
 							escapedMod = escapedMod[:i]
