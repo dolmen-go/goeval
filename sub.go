@@ -39,19 +39,19 @@ var (
 	shareSubSource string
 )
 
-// prepareSubPlay prepare the source code for compilation and execution of sub/play/play.go.
+// prepareSubPlay prepares the source code for compilation and execution of sub/play/play.go.
 func prepareSubPlay() (stdin *bytes.Buffer, tail func() error, cleanup func(), err error) {
 	return prepareSub(playSubSource)
 }
 
-// prepareSubPlay prepare the source code for compilation and execution of sub/share/share.go.
+// prepareSubShare prepares the source code for compilation and execution of sub/share/share.go.
 func prepareSubShare() (stdin *bytes.Buffer, tail func() error, cleanup func(), err error) {
 	return prepareSub(shareSubSource)
 }
 
 // prepareSub prepares execution of a sub command via a "go run".
 // The returned stdin buffer may be filled with data.
-// cleanup must be called after cmd.Run() to clean the tempoary go source created.
+// cleanup must be called after cmd.Run() to clean the temporary go source created.
 func prepareSub(appCode string) (stdin *bytes.Buffer, tail func() error, cleanup func(), err error) {
 	f, err := os.CreateTemp("", "*.go")
 	if err != nil {

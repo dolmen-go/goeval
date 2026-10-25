@@ -24,10 +24,11 @@
 // A Go toolchain must be available in $PATH as goeval relies on "go build".
 //
 // The code, given either as the first argument or on stdin, is wrapped as
-// the body of a main() function in a main package, and executed with "go run".
+// the body of a main() function in a main package, then compiled and executed
+// (like "go run" does).
 //
 // Imports are implicit (they are usually resolved automatically thanks to
-// [goimports]) but they can be explicitely specified using -i.
+// [goimports]) but they can be explicitly specified using -i.
 // If at least one package import is given with a version (-i import-path@version),
 // a full Go module is assembled, and imports without version are resolved
 // as the latest version available in the local Go module cache (GOMODCACHE).
