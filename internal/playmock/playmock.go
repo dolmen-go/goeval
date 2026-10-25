@@ -45,7 +45,7 @@ func (m *Mock) Handler() http.Handler {
 	return mux
 }
 
-// Compile wraps an custom implementation of the compile-and-run service like https://play.golang.org/compile.
+// Compile wraps a custom implementation of the compile-and-run service like https://play.golang.org/compile.
 type Compile func(*CompileRequest) (*CompileResponse, error)
 
 type CompileRequest struct {
@@ -126,7 +126,7 @@ func (compile Compile) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// Share wraps an custom implementation of the share service like https://play.golang.org/share.
+// Share wraps a custom implementation of the share service like https://play.golang.org/share.
 type Share func(*ShareRequest) (*ShareResponse, error)
 
 type ShareRequest struct {
