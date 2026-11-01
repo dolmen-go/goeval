@@ -23,7 +23,7 @@ docker ?= $(if $(call which,docker),docker,podman)
 .PHONY: openapi-validate
 
 openapi-validate: playground-openapi.yaml .spectral.yml
-	$(docker) run --rm -it -v "$(CURDIR):/src" docker.io/stoplight/spectral lint -r /src/.spectral.yml /src/playground-openapi.yaml
+	$(docker) run --rm -v "$(CURDIR):/src" -e NODE_NO_WARNINGS=1 docker.io/stoplight/spectral lint -r /src/.spectral.yml /src/playground-openapi.yaml
 
 .PHONY: swagger-ui
 
